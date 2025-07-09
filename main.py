@@ -1,40 +1,29 @@
-# main.py
-# The main script entry point. It initialises the application through a PyQt GUI.
+"""Entry point for running a simple backtest with a PyQt interface."""
 
 import sys
 from PyQt6.QtWidgets import QApplication
-import finplot as fplt
-from data_pipeline import market_data as md
-from models.agent import Agent
-from backtesting import backtest_engine as engine
 
-config = {
-    # --- Data Configuration ---
-    'ASSET_TYPE': 'crypto',  # or 'stock'
-    'SYMBOL': 'BTC/USDT',
-    'TIMEFRAME': '1m',
-    'START_DATE': '2025-06-08',
-    'END_DATE': '2025-07-08',
+from ui.main_window import MainWindow
+from backtesting.backtest_engine import BacktestEngine
+from strategies.moving_average_cross import MovingAverageCross
+from data_pipeline.data_fetcher import load_csv
 
-    # --- Sim Configuration ---
-    'SIM_TIMEFRAME': '1h',  # '1m', '5m', '15m', '1h', '4h', '1d'
-    'WINDOW_SIZE': 48,  # Number of candles to show in the window
-    'INTERVAL': 200,  # ms
-}
 
-app = QApplication.instance() or QApplication(sys.argv)
+def main():
+    app = QApplication.instance() or QApplication(sys.argv)
+    window = MainWindow()
 
-# Create the Agent instance in main
-agent = Agent(input_dim=5, initial_balance=1000, cuda=True)
+    def run_backtest():
+        data = load_csv("BTCUSDT", "1h")
+        strategy = MovingAverageCross()
+        engine = BacktestEngine(data, strategy)
+        equity, trades = engine.run()
+        window.plotter.plot_results(data, equity, trades)
 
-# Pass the agent to the TradingSimulator
-trading_sim = engine.TradingSimulator(config, agent=agent)
+    window.run_btn.clicked.connect(run_backtest)
+    window.show()
+    app.exec()
 
-# Install speed control event filter via the simulator
-trading_sim.install_speed_control(app)
 
-# Start the simulation
-trading_sim.start()
-
-# Start the plot
-fplt.show()
+if __name__ == "__main__":
+    main()
