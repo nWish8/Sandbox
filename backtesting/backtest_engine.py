@@ -16,16 +16,28 @@ class BacktestEngine:
 
     def run(self):
         for bar in self.data.itertuples():
-            action = self.strategy.on_bar(bar)
-            price = bar.close
-            if action == "BUY":
-                qty = 1
-                self.portfolio.buy(qty, price, fee=self.commission)
-                self.trade_log.append({"action": "BUY", "price": price, "time": bar.Index})
-            elif action == "SELL":
+            # Pass current portfolio position to strategy
+            action = self.strategy.on_bar(bar, current_position=self.portfolio.position)
+            price = bar.close  # Keep as pandas scalar for now
+            
+            # Execute trades based on signals
+            if action == "BUY" and self.portfolio.position == 0:
+                # Calculate quantity based on available cash
+                cost_per_share = float(price) * (1 + self.commission)
+                qty = int(self.portfolio.cash / cost_per_share)
+                if qty > 0:
+                    self.portfolio.buy(qty, float(price), fee=self.commission)
+                    self.trade_log.append({"action": "BUY", "price": float(price), "time": bar.Index})
+                    
+            elif action == "SELL" and self.portfolio.position > 0:
+                # Sell all current position
                 qty = self.portfolio.position
-                self.portfolio.sell(qty, price, fee=self.commission)
-                self.trade_log.append({"action": "SELL", "price": price, "time": bar.Index})
-            equity = self.portfolio.equity(price)
+                if qty > 0:
+                    self.portfolio.sell(qty, float(price), fee=self.commission)
+                    self.trade_log.append({"action": "SELL", "price": float(price), "time": bar.Index})
+            
+            # Calculate and store equity for this bar
+            equity = self.portfolio.equity(float(price))
             self.equity_curve.append((bar.Index, equity))
+            
         return self.equity_curve, self.trade_log

@@ -1,13 +1,15 @@
-# Trading System Framework
+# Advanced Backtesting Engine
 
-A modular Python framework for research, backtesting, and live trading of algorithmic strategies on crypto and stock markets.
+A modular Python backtesting framework with an interactive PyQt6 GUI for trading strategy research and analysis.
 
 ## Features
-- **Data Pipeline:** Ingest, preprocess, and manage historical and live market data.
-- **Indicators:** Compute technical and proprietary indicators for use in strategies.
-- **Models:** Integrate supervised, unsupervised, and reinforcement learning agents.
-- **Strategies:** Develop rule-based, ML, and RL trading strategies.
-- **Backtesting:** Simulate strategies with historical data and analyze performance. A lightweight offline engine is included with a PyQt interface for visualisation.
+
+- **Modular Architecture**: Cleanly separated components for backtesting, strategies, data pipeline, and UI
+- **Interactive GUI**: PyQt6 interface with finplot candlestick charts and matplotlib equity curves
+- **Multiple Strategies**: Built-in implementations of popular trading strategies
+- **Real-time Visualization**: Interactive charts with trade markers and performance metrics
+- **Comprehensive Testing**: Edge case handling and robust error management
+- **Extensible Design**: Easy to add new strategies and data sources
 - **Live Trading:** Connect to broker APIs, execute trades, and monitor live performance.
 - **Configurable:** Centralized YAML config for assets, timeframes, and API keys.
 - **Extensible:** Add new indicators, models, or strategies easily.
