@@ -7,7 +7,7 @@ A modular Python framework for research, backtesting, and live trading of algori
 - **Indicators:** Compute technical and proprietary indicators for use in strategies.
 - **Models:** Integrate supervised, unsupervised, and reinforcement learning agents.
 - **Strategies:** Develop rule-based, ML, and RL trading strategies.
-- **Backtesting:** Simulate strategies with historical data and analyze performance.
+- **Backtesting:** Simulate strategies with historical data and analyze performance. A lightweight offline engine is included with a PyQt interface for visualisation.
 - **Live Trading:** Connect to broker APIs, execute trades, and monitor live performance.
 - **Configurable:** Centralized YAML config for assets, timeframes, and API keys.
 - **Extensible:** Add new indicators, models, or strategies easily.
@@ -53,8 +53,8 @@ A modular Python framework for research, backtesting, and live trading of algori
    ```
 2. **Configure your system:**
    - Edit `config.yaml` with your symbols, API keys, and settings.
-3. **Fetch data:**
-   - Use `data_pipeline/market_data.py` to download and save OHLCV data.
+3. **Prepare data:**
+   - Place your CSV files under the `market_data/` directory (e.g. `BTCUSDT_1h.csv`).
 4. **Run a backtest:**
    ```sh
    python main.py
