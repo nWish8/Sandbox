@@ -145,9 +145,19 @@ class SandboxEngine(bt.Cerebro):
         # Ensure proper column names and datetime index
         df = self._prepare_dataframe(df)
         
-        # Create Backtrader data feed
+        # Create Backtrader data feed with explicit datetime column mapping
         # Note: dataname parameter works despite type checker warnings
-        data_feed = bt.feeds.PandasData(dataname=df, **kwargs)  # type: ignore
+        data_feed = bt.feeds.PandasData(
+            dataname=df,
+            datetime=None,  # Use index as datetime
+            open=0,         # Column index for open
+            high=1,         # Column index for high  
+            low=2,          # Column index for low
+            close=3,        # Column index for close
+            volume=4,       # Column index for volume
+            openinterest=-1, # No open interest data
+            **kwargs
+        )  # type: ignore
         
         self.adddata(data_feed)
         logger.info(f"Added data feed '{name}' with {len(df)} bars")
@@ -187,8 +197,15 @@ class SandboxEngine(bt.Cerebro):
                 else:
                     df[col] = df['close']
         
-        # Sort by datetime
+        # Sort by datetime and ensure timezone-naive for Backtrader compatibility
         df = df.sort_index()
+        
+        # Convert timezone-aware datetime to timezone-naive if needed
+        if df.index.tz is not None:
+            df.index = df.index.tz_convert(None)
+        
+        # Ensure index name is set properly for Backtrader
+        df.index.name = 'datetime'
         
         return df
     

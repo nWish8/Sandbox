@@ -1,8 +1,58 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+
+# Virtual environments
 env/
 venv/
+.venv/
 
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Data caches and temporary files
+*.cache
+cache/
+data_cache/
+temp_data/
+
+# Plot outputs and generated charts
+plots/
+charts/
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+
+# Backtrader plot files
+bt_plot_*.html
+
+# Data files (uncomment if you don't want to track market data)
+# market_data/
+# *.csv
+# *.json
+# *.parquet
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/

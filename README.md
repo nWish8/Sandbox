@@ -1,10 +1,10 @@
-# Sandbox Trading Research Stack
+# BT Sandbox - Backtesting Framework
 
-A comprehensive Python-based trading system featuring modular strategies, data pipeline integration, and backtesting capabilities using Backtrader.
+A comprehensive Python package for developing, testing, and analyzing trading strategies using Backtrader as the core backtesting engine.
 
 ## 🚀 Features
 
-- **Modular Strategy Architecture**: Clean separation of strategy logic from execution engine
+- **Modular Package Architecture**: Clean, organized Python package structure
 - **Multi-Provider Data Pipeline**: Support for CSV, Yahoo Finance, and Binance data sources
 - **Backtrader Integration**: Professional-grade backtesting engine with extensive analytics
 - **Extensible Design**: Easy to add new strategies, data providers, and evaluation metrics
@@ -13,43 +13,42 @@ A comprehensive Python-based trading system featuring modular strategies, data p
 
 ## 📁 Project Structure
 
-```csv
+```
 sandbox/
-├── main.py                     # Main entry point and demo script
-├── config.yaml                 # Configuration settings
-├── requirements.txt            # Python dependencies
-├── README.md                   # This file
+├── bt_sandbox/                 # Main package
+│   ├── __init__.py            # Package initialization
+│   ├── __main__.py            # Module entry point (python -m bt_sandbox)
+│   ├── main.py                # Main application logic
+│   ├── README.md              # Package documentation
+│   │
+│   ├── strategies/            # Trading strategy implementations
+│   │   ├── __init__.py
+│   │   ├── rsi_strategy.py    # RSI reversal cross strategy
+│   │   ├── ma_crossover_strategy.py  # Moving average crossover
+│   │   └── bollinger_bands_strategy.py  # Bollinger Bands strategy
+│   │
+│   ├── datafeeds/             # Data acquisition and management
+│   │   ├── __init__.py
+│   │   ├── manager.py         # Unified data manager
+│   │   └── providers/         # Data provider implementations
+│   │       ├── __init__.py
+│   │       ├── base_provider.py
+│   │       ├── csv_provider.py
+│   │       ├── binance_provider.py
+│   │       └── yahoo_provider.py
+│   │
+│   ├── backtesting/           # Backtesting engine and utilities
+│   │   ├── __init__.py
+│   │   └── engine.py          # Enhanced Backtrader engine
+│   │
+│   └── utils/                 # Helper functions and utilities
+│       ├── __init__.py
+│       └── data_fetcher.py    # Data fetching utilities
 │
-├── data_pipeline/              # Data management and providers
-│   ├── __init__.py
-│   ├── manager.py              # Main data manager
-│   ├── base_provider.py        # Base data provider interface
-│   ├── csv_provider.py         # CSV data source
-│   ├── yahoo_provider.py       # Yahoo Finance integration
-│   ├── binance_provider.py     # Binance API integration
-│   ├── market_data.py          # Market data structures
-│   ├── preprocess.py           # Data preprocessing utilities
-│   ├── data_fetcher.py         # Data fetching utilities
-│   └── live_feed.py            # Live data feed support
-│
-├── backtesting/                # Backtesting engine and utilities
-│   ├── engine.py               # Core backtesting engine
-│   ├── backtest_engine.py      # Backtrader integration
-│   ├── portfolio.py            # Portfolio management
-│   └── evaluation.py          # Performance evaluation metrics
-│
-├── strategies/                 # Trading strategy implementations
-│   ├── strategy_base.py        # Base strategy class
-│   ├── rsi_strategy.py         # RSI strategy (legacy, StrategyBase)
-│   ├── rsi_backtrader.py       # RSI strategy (Backtrader compatible)
-│   ├── ma_crossover_backtrader.py  # Moving Average crossover (Backtrader)
-│   ├── bollinger_bands_strategy.py # Bollinger Bands strategy
-│   ├── macd_strategy.py        # MACD strategy
-│   └── moving_average_cross.py # Moving Average strategy (legacy)
-│
-└── market_data/                # Sample market data
-    ├── BTCUSDT_1h.csv          # Bitcoin hourly data
-    └── BTCUSDT_1m_2025-06-08_to_2025-07-08.csv  # Bitcoin minute data
+├── market_data/               # Sample market data
+├── fetch_btc_data.py         # Data fetching script
+├── requirements.txt          # Python dependencies
+└── README.md                 # This file
 ```
 
 ## 🛠️ Installation
@@ -67,29 +66,34 @@ sandbox/
 
 ## 🎯 Quick Start
 
-Run the main demo script to see the RSI strategy in action:
+Run the main package to see the RSI strategy in action:
 
 ```bash
-python main.py
+# Run the main package
+python -m bt_sandbox
+
+# Or alternatively:
+python -m bt_sandbox.main
 ```
 
 This will:
 
 - Initialize the data pipeline
-- Load Bitcoin 1-minute data
+- Load Bitcoin 4-hour data
 - Run the RSI strategy backtest
 - Display comprehensive performance metrics
+- Show interactive Backtrader plot
 
 ## 📊 Available Strategies
 
-### 1. RSI Strategy (`rsi_backtrader.py`)
+### 1. RSI Strategy (`bt_sandbox/strategies/rsi_strategy.py`)
 
-**Algorithm**: Relative Strength Index momentum strategy
+**Algorithm**: Relative Strength Index reversal cross strategy
 
 **Logic**:
 
-- **Buy Signal**: RSI falls below oversold threshold (default: 30)
-- **Sell Signal**: RSI rises above overbought threshold (default: 70)
+- **Buy Signal**: RSI crosses above oversold threshold after being below (default: 30)
+- **Sell Signal**: RSI crosses below overbought threshold after being above (default: 70)
 - **Position Sizing**: Configurable percentage of available cash (default: 95%)
 
 **Parameters**:
@@ -102,11 +106,11 @@ This will:
 
 **Use Cases**:
 
-- Momentum trading in trending markets
 - Counter-trend strategies in ranging markets
+- Mean reversion trading
 - Short-term swing trading
 
-### 2. Moving Average Crossover (`ma_crossover_backtrader.py`)
+### 2. Moving Average Crossover (`bt_sandbox/strategies/ma_crossover_strategy.py`)
 
 **Algorithm**: Dual moving average crossover system
 
@@ -189,9 +193,9 @@ The `DataManager` class (`manager.py`) provides:
 ### Usage Example
 
 ```python
-from backtesting.engine import SandboxEngine
-from strategies.rsi_backtrader import RSIBacktraderStrategy
-from data_pipeline import DataManager
+from bt_sandbox.backtesting import SandboxEngine
+from bt_sandbox.strategies import RSIBacktraderStrategy
+from bt_sandbox.datafeeds import DataManager
 
 # Initialize components
 engine = SandboxEngine(cash=100000.0, commission=0.001)
@@ -210,23 +214,24 @@ results, portfolio = engine.run_backtest(
 
 ## 🎛️ Configuration
 
-### Main Configuration (`config.yaml`)
+### Data Manager Configuration
 
-```yaml
-data_sources:
-  csv:
-    data_dir: "market_data"
-  yahoo:
-    cache_dir: "cache"
-  binance:
-    api_key: "your_api_key"
-    api_secret: "your_api_secret"
+Configure data sources programmatically:
 
-default_provider: "csv"
+```python
+from bt_sandbox.datafeeds import DataManager
 
-backtesting:
-  default_cash: 100000.0
-  default_commission: 0.001
+config = {
+    'csv': {'data_dir': 'market_data'},
+    'yahoo': {'cache_dir': 'cache'},
+    'binance': {
+        'api_key': 'your_api_key',
+        'api_secret': 'your_api_secret'
+    },
+    'default_provider': 'csv'
+}
+
+manager = DataManager(config)
 ```
 
 ### Strategy Parameters
@@ -313,8 +318,8 @@ class MyStrategy(bt.Strategy):
 
 ### Integration Steps
 
-1. **Create Strategy File**: Add to `strategies/` directory
-2. **Import in Main**: Add import to `main.py`
+1. **Create Strategy File**: Add to `bt_sandbox/strategies/` directory
+2. **Import in Package**: Add import to strategy `__init__.py`
 3. **Configure Parameters**: Define strategy parameters
 4. **Test Strategy**: Run backtests with different parameter sets
 

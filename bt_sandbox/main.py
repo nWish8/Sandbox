@@ -1,23 +1,26 @@
 """
-Simplified main entry point using Backtrader engine.
+Main entry point for BT Sandbox.
 
 This script runs trading strategies using the enhanced Backtrader integration
-and the modular strategy implementations from the strategies folder.
+and the modular strategy implementations from the bt_sandbox package.
+
+Usage:
+    python -m bt_sandbox.main
 """
 
 import backtrader as bt
-from data_pipeline import DataManager
-from backtesting.engine import SandboxEngine
-from strategies.rsi_backtrader import RSIBacktraderStrategy
-from strategies.ma_crossover_backtrader import MovingAverageCrossStrategy
+from bt_sandbox.datafeeds import DataManager
+from bt_sandbox.backtesting import SandboxEngine
+from bt_sandbox.strategies import RSIBacktraderStrategy
 import sys
 from typing import Any
+from datetime import datetime, timedelta
 
 
 def main():
     """Run the backtest with Backtrader engine."""
     print("=" * 60)
-    print("Sandbox Trading Research Stack - RSI Strategy Demo")
+    print("BT Sandbox - RSI Strategy Demo (4H Timeframe)")
     print("=" * 60)
     
     # Initialize data manager
@@ -36,13 +39,13 @@ def main():
         print("❌ No CSV data available. Please add CSV files to market_data/ directory.")
         return
     
-    # Use the 1-minute BTCUSDT data
-    symbol = 'BTCUSDT_1m_2025-06-08_to_2025-07-08'
-    print(f"2. Loading 1-minute data for {symbol}...")
+    # Use the fresh 4-hour BTCUSDT data
+    symbol = 'BTCUSDT_4h_recent'
+    print(f"2. Loading 4-hour data for {symbol}...")
     
     try:
-        data = manager.fetch_ohlcv(symbol, '1m')
-        print(f"   ✓ Loaded {len(data)} bars of 1-minute data")
+        data = manager.fetch_ohlcv(symbol, '4h')
+        print(f"   ✓ Loaded {len(data)} bars of 4-hour data")
         print(f"   📅 Date range: {data.index.min()} to {data.index.max()}")
         print(f"   💰 Price range: ${data['close'].min():.2f} - ${data['close'].max():.2f}")
     except Exception as e:
@@ -57,7 +60,7 @@ def main():
     )
     
     # Run backtest
-    print("4. Running RSI strategy backtest...")
+    print("4. Running RSI strategy backtest on 4-hour timeframe...")
     print("-" * 40)
     
     try:
@@ -112,7 +115,6 @@ def main():
     print("=" * 60)
     print("✅ Backtest completed successfully!")
     print("=" * 60)
-
 
 
 if __name__ == "__main__":

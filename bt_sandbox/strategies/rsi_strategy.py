@@ -29,8 +29,8 @@ class RSIBacktraderStrategy(bt.Strategy):
     
     params = (
         ('rsi_period', 14),
-        ('oversold', 30),
-        ('overbought', 70),
+        ('oversold', 35),
+        ('overbought', 65),
         ('position_size', 0.95),
         ('printlog', True),
     )
@@ -72,7 +72,7 @@ class RSIBacktraderStrategy(bt.Strategy):
         current_rsi = self.rsi[0]
         prev_rsi = self.rsi[-1] if len(self.rsi) > 1 else None
         current_price = self.data.close[0]
-        current_date = self.data.datetime.date(0)
+        current_datetime = bt.num2date(self.data.datetime[0])
         
         # Check position size
         position_size = self.position.size if self.position else 0
@@ -85,7 +85,7 @@ class RSIBacktraderStrategy(bt.Strategy):
             position_size == 0):
             
             if self.params.printlog:  # type: ignore
-                print(f"BUY signal at ${current_price:.2f} (RSI cross above {self.params.oversold}: {prev_rsi:.1f} -> {current_rsi:.1f}) on {current_date}")  # type: ignore
+                print(f"BUY signal at ${current_price:.2f} (RSI cross above {self.params.oversold}: {prev_rsi:.1f} -> {current_rsi:.1f}) on {current_datetime.strftime('%Y-%m-%d %H:%M')}")  # type: ignore
             
             # Calculate position size based on available cash
             cash = self.broker.get_cash()
@@ -100,7 +100,7 @@ class RSIBacktraderStrategy(bt.Strategy):
               position_size > 0):
             
             if self.params.printlog:  # type: ignore
-                print(f"SELL signal at ${current_price:.2f} (RSI cross below {self.params.overbought}: {prev_rsi:.1f} -> {current_rsi:.1f}) on {current_date}")  # type: ignore
+                print(f"SELL signal at ${current_price:.2f} (RSI cross below {self.params.overbought}: {prev_rsi:.1f} -> {current_rsi:.1f}) on {current_datetime.strftime('%Y-%m-%d %H:%M')}")  # type: ignore
             # Close the entire position
             self.order = self.close()
     
