@@ -7,3 +7,4 @@ pandas
 finplot
 torch
 matplotlib
+backtrader
