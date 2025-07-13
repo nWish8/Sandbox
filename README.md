@@ -11,9 +11,99 @@ A comprehensive Python package for developing, testing, and analyzing trading st
 - **Real-time Logging**: Comprehensive trade and performance logging
 - **Portfolio Analytics**: Detailed performance metrics including Sharpe ratio, drawdown analysis
 
+## ⚡ Quick Start
+
+### 1. Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd Sandbox
+
+# Create virtual environment (recommended)
+python -m venv .venv
+
+# Activate virtual environment
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Run Your First Backtest
+
+```bash
+# Run the default RSI strategy demo
+python -m bt_sandbox
+```
+
+### 3. Expected Output
+
+When you run the command above, you should see output similar to this:
+
+```text
+============================================================
+BT Sandbox - RSI Strategy Demo (4H Timeframe)
+============================================================
+1. Initializing data manager...
+Available symbols: {'csv': ['BTCUSDT']}
+2. Loading 4-hour data for BTCUSDT_4h_recent...
+   ✓ Loaded 500 bars of 4-hour data
+   📅 Date range: 2025-04-21 12:00:00 to 2025-07-13 16:00:00
+   💰 Price range: $87415.10 - $118949.10
+3. Setting up Backtrader engine...
+4. Running RSI strategy backtest on 4-hour timeframe...
+----------------------------------------
+RSI Reversal Cross Strategy initialized:
+  - RSI Period: 14
+  - Oversold Level: 30
+  - Overbought Level: 70
+  - Position Size: 95.0%
+  - Trading on reversal crosses only
+BUY signal at $102493.30 (RSI cross above 30: 28.8 -> 37.0) on 2025-06-06 00:00
+BUY EXECUTED: Price: $102493.30, Size: 0.0093
+SELL signal at $109205.14 (RSI cross below 70: 70.8 -> 67.6) on 2025-06-10 04:00
+SELL EXECUTED: Price: $109205.14, Size: -0.0093
+TRADE #1 CLOSED: PnL: $62.21 (0.00%)
+----------------------------------------
+5. Backtest Results:
+   💵 Starting Value: $1,000.00
+   💰 Final Value:    $1,081.69
+   📈 Total Return:   8.17%
+   📊 Sharpe Ratio:   N/A
+   📉 Max Drawdown:   856.43%
+   🔄 Total Trades:   2
+   ✅ Winning Trades: 2
+   ❌ Losing Trades:  0
+6. Displaying backtest results chart...
+   📈 Opening Backtrader plot window...
+   ✓ Plot window opened successfully!
+============================================================
+✅ Backtest completed successfully!
+============================================================
+```
+
+The system will also open an interactive chart showing:
+
+- 📊 Candlestick price data
+- 📈 RSI indicator with overbought/oversold levels
+- 🔵 Buy signals (blue arrows)
+- 🔴 Sell signals (red arrows)
+- 💰 Portfolio value progression
+
+### 4. Next Steps
+
+- **Try different strategies**: `python -m bt_sandbox.strategies.ma_crossover_strategy`
+- **Add your own data**: Place CSV files in `market_data/` directory
+- **Create custom strategies**: Extend the `bt_sandbox.strategies` module
+- **Fetch fresh data**: Use `python fetch_btc_data.py` to get latest market data
+
 ## 📁 Project Structure
 
-```
+```text
 sandbox/
 ├── bt_sandbox/                 # Main package
 │   ├── __init__.py            # Package initialization
