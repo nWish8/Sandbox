@@ -1,421 +1,369 @@
 """
-Backtrader-based backtesting engine for the Sandbox trading research stack.
+Enhanced Backtrader engine following best practices.
 
-This module provides a modern, feature-rich backtesting engine that replaces
-the simple loop-based approach with Backtrader's robust framework.
+Improvements include:
+1. Centralized broker configuration
+2. Realistic commission and slippage settings
+3. Proper sizer configuration
+4. Support for native Backtrader data feeds
 """
 
-from typing import Dict, Any, Union, Tuple, Optional, Type
-import pandas as pd
 import backtrader as bt
-from pathlib import Path
-import logging
-
-logger = logging.getLogger(__name__)
-
-
-class FractionalSizer(bt.Sizer):
-    """
-    Custom sizer that allows fractional position sizing.
-    
-    This sizer enables trading fractional shares/units, which is essential
-    for crypto trading and portfolio percentage allocation strategies.
-    """
-    
-    def _getsizing(self, comminfo, cash, data, isbuy):
-        """
-        Calculate position size allowing fractional shares.
-        
-        Returns the size passed to buy/sell orders directly.
-        """
-        # Return the size specified in the order (allows fractional)
-        return self.strategy.lastorder_size if hasattr(self.strategy, 'lastorder_size') else 1.0
-
-
-class PercentSizer(bt.Sizer):
-    """
-    Sizer that allocates a percentage of available cash to positions.
-    
-    Useful for risk management and consistent position sizing across trades.
-    """
-    
-    params = (
-        ('percents', 10),  # Percentage of cash to use (default 10%)
-        ('retfloat', True),  # Return float values
-    )
-    
-    def _getsizing(self, comminfo, cash, data, isbuy):
-        """
-        Calculate position size based on percentage of available cash.
-        
-        Args:
-            comminfo: Commission info object
-            cash: Available cash
-            data: Data feed
-            isbuy: True if buying, False if selling
-            
-        Returns:
-            float: Position size based on cash percentage
-        """
-        if isbuy:
-            # Calculate how much cash to use
-            target_value = cash * (self.p.percents / 100.0)
-            # Calculate position size based on current price
-            size = target_value / data.close[0]
-            
-            if self.p.retfloat:
-                return float(size)
-            else:
-                return int(size)
-        else:
-            # For selling, return 0 (will sell entire position)
-            return 0
+from typing import Dict, Any, Union, Optional, Type
+import pandas as pd
+from datetime import datetime
 
 
 class SandboxEngine(bt.Cerebro):
     """
-    Enhanced Backtrader Cerebro subclass for sandbox trading research.
+    Enhanced Backtrader engine with best practices.
     
-    Provides a simplified interface for backtesting with sensible defaults,
-    fractional position sizing, and comprehensive analytics.
+    Features:
+    - Centralized broker configuration
+    - Realistic commission and slippage
+    - Proper sizer setup
+    - Native data feed support
     """
     
     def __init__(
-        self,
+        self, 
         cash: float = 100000.0,
-        commission: float = 0.0005,
-        enable_fractional: bool = True,
+        commission: float = 0.0005,  # 0.05% commission
+        slippage_perc: float = 0.0001,  # 0.01% slippage
+        sizer_percent: float = 10.0,  # 10% of cash per trade
         **kwargs
     ):
         """
-        Initialize the SandboxEngine.
+        Initialize enhanced engine with best practices.
         
         Args:
-            cash: Starting cash amount (default: $100,000)
-            commission: Commission rate as decimal (default: 0.05%)
-            enable_fractional: Whether to enable fractional position sizing
-            **kwargs: Additional arguments passed to bt.Cerebro
+            cash: Starting cash (single source of truth)
+            commission: Commission rate as decimal (0.0005 = 0.05%)
+            slippage_perc: Slippage percentage  
+            sizer_percent: Percentage of cash to use per trade
+            **kwargs: Additional Cerebro parameters
         """
         super().__init__(**kwargs)
         
-        # Set broker parameters
-        self.broker.setcash(cash)
-        self.broker.setcommission(commission=commission)
+        # Configure broker (single source of truth)
+        self._setup_broker(cash, commission, slippage_perc)
         
-        # Backtrader handles fractional sizing natively, remove custom sizer for now
-        # Users can specify exact sizes in buy/sell calls
+        # Configure sizer
+        self._setup_sizer(sizer_percent)
         
         # Add default analyzers
-        self._add_default_analyzers()
+        self._add_analyzers()
         
-        logger.info(f"SandboxEngine initialized with ${cash:,.2f} cash and {commission:.4f} commission")
+        print(f"✅ Enhanced Engine initialized:")
+        print(f"   💰 Starting Cash: ${cash:,.2f}")
+        print(f"   📊 Commission: {commission:.4f} ({commission*100:.2f}%)")
+        print(f"   ⚡ Slippage: {slippage_perc:.4f} ({slippage_perc*100:.2f}%)")
+        print(f"   📏 Position Size: {sizer_percent:.1f}% of cash")
     
-    def _add_default_analyzers(self) -> None:
-        """Add standard analyzers for performance evaluation."""
+    def _setup_broker(self, cash: float, commission: float, slippage_perc: float):
+        """Configure broker with realistic settings."""
+        # Set cash (single source of truth)
+        self.broker.setcash(cash)
+        
+        # Set commission
+        self.broker.setcommission(commission=commission)
+        
+        # Add slippage for more realistic results
+        if slippage_perc > 0:
+            self.broker.set_slippage_perc(perc=slippage_perc)
+    
+    def _setup_sizer(self, percent: float):
+        """Configure position sizer."""
+        self.addsizer(bt.sizers.PercentSizer, percents=percent)
+    
+    def _add_analyzers(self):
+        """Add comprehensive performance analyzers."""
         self.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
-        self.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+        self.addanalyzer(bt.analyzers.DrawDown, _name='drawdown') 
         self.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
         self.addanalyzer(bt.analyzers.Returns, _name='returns')
         self.addanalyzer(bt.analyzers.TimeReturn, _name='timereturn')
+        self.addanalyzer(bt.analyzers.Calmar, _name='calmar')
     
-    def add_data_feed(
+    def add_yahoo_data(
         self,
-        data: Union[pd.DataFrame, str, Path],
-        name: str = 'data0',
+        symbol: str,
+        fromdate: datetime,
+        todate: datetime,
+        timeframe: Any = bt.TimeFrame.Days,
+        compression: int = 1,
         **kwargs
-    ) -> None:
+    ) -> bt.feeds.YahooFinanceData:
         """
-        Add data feed from DataFrame or CSV file.
+        Add Yahoo Finance data using Backtrader's native feed.
         
         Args:
-            data: Pandas DataFrame with OHLCV data or path to CSV file
-            name: Name for the data feed
-            **kwargs: Additional arguments for bt.feeds.PandasData
-        """
-        if isinstance(data, (str, Path)):
-            # Load from CSV file
-            df = pd.read_csv(data)
-            logger.info(f"Loaded data from {data}: {len(df)} rows")
-        elif isinstance(data, pd.DataFrame):
-            df = data.copy()
-            logger.info(f"Using DataFrame: {len(df)} rows")
-        else:
-            raise ValueError("Data must be pandas DataFrame or path to CSV file")
-        
-        # Ensure proper column names and datetime index
-        df = self._prepare_dataframe(df)
-        
-        # Create Backtrader data feed with explicit datetime column mapping
-        # Note: dataname parameter works despite type checker warnings
-        data_feed = bt.feeds.PandasData(
-            dataname=df,
-            datetime=None,  # Use index as datetime
-            open=0,         # Column index for open
-            high=1,         # Column index for high  
-            low=2,          # Column index for low
-            close=3,        # Column index for close
-            volume=4,       # Column index for volume
-            openinterest=-1, # No open interest data
-            **kwargs
-        )  # type: ignore
-        
-        self.adddata(data_feed)
-        logger.info(f"Added data feed '{name}' with {len(df)} bars")
-    
-    def _prepare_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Prepare DataFrame for Backtrader consumption.
-        
-        Args:
-            df: Raw DataFrame with OHLCV data
+            symbol: Yahoo symbol (e.g., 'AAPL', 'BTC-USD')
+            fromdate: Start date
+            todate: End date
+            timeframe: bt.TimeFrame constant
+            compression: Compression factor
+            **kwargs: Additional parameters
             
         Returns:
-            pd.DataFrame: Properly formatted DataFrame
+            The data feed that was added
         """
-        df = df.copy()
-        
-        # Handle timestamp column
-        if 'timestamp' in df.columns:
-            df['datetime'] = pd.to_datetime(df['timestamp'])
-            df = df.set_index('datetime')
-            df = df.drop('timestamp', axis=1)
-        elif 'time' in df.columns:
-            df['datetime'] = pd.to_datetime(df['time'])
-            df = df.set_index('datetime')
-            df = df.drop('time', axis=1)
-        elif not isinstance(df.index, pd.DatetimeIndex):
-            # Assume first column is datetime if no explicit timestamp
-            df.index = pd.to_datetime(df.index)
-        
-        # Ensure required columns exist
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
-        for col in required_cols:
-            if col not in df.columns:
-                logger.warning(f"Missing column '{col}', creating with close price")
-                if col == 'volume':
-                    df[col] = 1000  # Default volume
-                else:
-                    df[col] = df['close']
-        
-        # Sort by datetime and ensure timezone-naive for Backtrader compatibility
-        df = df.sort_index()
-        
-        # Convert timezone-aware datetime to timezone-naive if needed
-        if df.index.tz is not None:
-            df.index = df.index.tz_convert(None)
-        
-        # Ensure index name is set properly for Backtrader
-        df.index.name = 'datetime'
-        
-        return df
-    
-    def _add_data_from_input(self, data: Union[pd.DataFrame, str], name: str = "data0"):
-        """
-        Helper method to add data to the engine from various input types.
-        
-        Args:
-            data: DataFrame or CSV path with OHLCV data
-            name: Name for the data feed
-        """
-        if isinstance(data, str):
-            # Load from CSV file
-            df = pd.read_csv(data, index_col=0, parse_dates=True)
-            logger.info(f"Loaded DataFrame from {data}: {len(df)} rows")
-        elif isinstance(data, pd.DataFrame):
-            df = data.copy()
-            logger.info(f"Using DataFrame: {len(df)} rows")
-        else:
-            raise ValueError("Data must be pandas DataFrame or path to CSV file")
-        
-        # Ensure proper column names and datetime index
-        df = self._prepare_dataframe(df)
-        
-        # Create Backtrader data feed
-        data_feed = bt.feeds.PandasData(dataname=df)  # type: ignore
+        data_feed = bt.feeds.YahooFinanceData(
+            dataname=symbol,
+            fromdate=fromdate,
+            todate=todate,
+            timeframe=timeframe,
+            compression=compression,
+            adjclose=True,  # Use adjusted close
+            **kwargs
+        )
         
         self.adddata(data_feed)
-        logger.info(f"Added data feed '{name}' with {len(df)} bars")
+        print(f"📈 Added Yahoo data: {symbol} ({fromdate.date()} to {todate.date()})")
+        
+        return data_feed
+    
+    def add_csv_data(
+        self,
+        filepath: str,
+        fromdate: Optional[datetime] = None,
+        todate: Optional[datetime] = None,
+        timeframe: Any = bt.TimeFrame.Days,
+        compression: int = 1,
+        **kwargs
+    ) -> bt.feeds.GenericCSVData:
+        """
+        Add CSV data using Backtrader's native CSV feed.
+        
+        Args:
+            filepath: Path to CSV file
+            fromdate: Optional start date filter
+            todate: Optional end date filter  
+            timeframe: bt.TimeFrame constant
+            compression: Compression factor
+            **kwargs: Additional CSV parameters
+            
+        Returns:
+            The data feed that was added
+        """
+        params = {
+            'dataname': filepath,
+            'timeframe': timeframe,
+            'compression': compression,
+            'dtformat': '%Y-%m-%d %H:%M:%S',
+            'datetime': 0,
+            'open': 1,
+            'high': 2,
+            'low': 3,
+            'close': 4,
+            'volume': 5,
+            'openinterest': -1,
+            **kwargs
+        }
+        
+        if fromdate:
+            params['fromdate'] = fromdate
+        if todate:
+            params['todate'] = todate
+        
+        data_feed = bt.feeds.GenericCSVData(**params)
+        self.adddata(data_feed)
+        
+        print(f"📁 Added CSV data: {filepath}")
+        if fromdate or todate:
+            print(f"   📅 Date range: {fromdate or 'start'} to {todate or 'end'}")
+        
+        return data_feed
+    
+    def add_pandas_data(
+        self,
+        dataframe: pd.DataFrame,
+        fromdate: Optional[datetime] = None,
+        todate: Optional[datetime] = None,
+        timeframe: Any = bt.TimeFrame.Days,
+        compression: int = 1,
+        **kwargs
+    ) -> bt.feeds.PandasData:
+        """
+        Add pandas DataFrame as data feed.
+        
+        Args:
+            dataframe: Pandas DataFrame with OHLCV data
+            fromdate: Optional start date filter
+            todate: Optional end date filter
+            timeframe: bt.TimeFrame constant
+            compression: Compression factor
+            **kwargs: Additional parameters
+            
+        Returns:
+            The data feed that was added
+        """
+        params = {
+            'dataname': dataframe,
+            'timeframe': timeframe,
+            'compression': compression,
+            **kwargs
+        }
+        
+        if fromdate:
+            params['fromdate'] = fromdate
+        if todate:
+            params['todate'] = todate
+        
+        data_feed = bt.feeds.PandasData(**params)
+        self.adddata(data_feed)
+        
+        print(f"🐼 Added Pandas data: {len(dataframe)} rows")
+        if fromdate or todate:
+            print(f"   📅 Date range: {fromdate or 'start'} to {todate or 'end'}")
+        
+        return data_feed
     
     def run_backtest(
         self,
-        strategy_cls: Type[bt.Strategy],
-        params: Optional[Dict[str, Any]] = None,
-        data: Optional[Union[pd.DataFrame, str]] = None,
-        **kwargs
-    ) -> Tuple[Dict[str, Any], pd.DataFrame]:
+        strategy_class: Type[bt.Strategy],
+        **strategy_params
+    ) -> Dict[str, Any]:
         """
-        Run backtest with specified strategy and parameters.
+        Run backtest with the given strategy.
         
         Args:
-            strategy_cls: Backtrader Strategy class
-            params: Dictionary of strategy parameters
-            data: DataFrame or CSV path with OHLCV data (optional if already added)
-            **kwargs: Additional arguments for strategy
+            strategy_class: Strategy class to run
+            **strategy_params: Parameters to pass to strategy
             
         Returns:
-            Tuple containing:
-                - Dict with performance statistics
-                - DataFrame with portfolio value over time
+            Dictionary with backtest results
         """
-        if params is None:
-            params = {}
+        # Add strategy
+        self.addstrategy(strategy_class, **strategy_params)
         
-        # Add data if provided
-        if data is not None:
-            self._add_data_from_input(data)
+        # Record starting value
+        start_value = self.broker.getvalue()
         
-        # Add strategy with parameters
-        self.addstrategy(strategy_cls, **params, **kwargs)
-        
-        logger.info(f"Running backtest with {strategy_cls.__name__}")
-        logger.info(f"Strategy parameters: {params}")
-        
-        # Run the backtest
+        # Run backtest
+        print(f"🚀 Running backtest with {strategy_class.__name__}...")
         results = self.run()
         
-        if not results:
-            raise RuntimeError("Backtest failed to produce results")
+        # Record ending value
+        end_value = self.broker.getvalue()
         
-        strategy_result = results[0]
+        # Extract results from analyzers
+        strategy_results = results[0]
         
-        # Extract analyzer results
-        stats = self._extract_analyzer_results(strategy_result)
-        
-        # Create portfolio DataFrame
-        portfolio_df = self._create_portfolio_dataframe(strategy_result)
-        
-        logger.info("Backtest completed successfully")
-        logger.info(f"Final portfolio value: ${self.broker.getvalue():,.2f}")
-        
-        return stats, portfolio_df
-    
-    def _extract_analyzer_results(self, strategy) -> Dict[str, Any]:
-        """
-        Extract and serialize analyzer results to dictionary.
-        
-        Args:
-            strategy: Strategy instance with analyzers
-            
-        Returns:
-            Dict containing all analyzer results
-        """
-        stats = {
-            'initial_cash': self.broker.startingcash,
-            'final_value': self.broker.getvalue(),
-            'total_return': (self.broker.getvalue() / self.broker.startingcash) - 1,
+        # Calculate performance metrics
+        performance = {
+            'start_value': start_value,
+            'end_value': end_value,
+            'total_return': (end_value - start_value) / start_value,
+            'total_return_pct': ((end_value - start_value) / start_value) * 100
         }
         
-        # Extract Sharpe ratio
-        if hasattr(strategy.analyzers, 'sharpe'):
-            sharpe_analysis = strategy.analyzers.sharpe.get_analysis()
-            stats['sharpe_ratio'] = sharpe_analysis.get('sharperatio', 0.0)
+        # Add analyzer results
+        analyzers = {}
+        try:
+            # Access analyzers correctly
+            for name, analyzer in strategy_results.analyzers.getitems():
+                try:
+                    analyzers[name] = analyzer.get_analysis()
+                except:
+                    analyzers[name] = None
+        except AttributeError:
+            # Fallback if analyzers structure is different
+            pass
         
-        # Extract drawdown info
-        if hasattr(strategy.analyzers, 'drawdown'):
-            dd_analysis = strategy.analyzers.drawdown.get_analysis()
-            stats['max_drawdown'] = dd_analysis.get('max', {}).get('drawdown', 0.0)
-            stats['max_drawdown_period'] = dd_analysis.get('max', {}).get('len', 0)
+        performance['analyzers'] = analyzers
         
-        # Extract trade statistics
-        if hasattr(strategy.analyzers, 'trades'):
-            trade_analysis = strategy.analyzers.trades.get_analysis()
-            stats.update({
-                'total_trades': trade_analysis.get('total', {}).get('total', 0),
-                'winning_trades': trade_analysis.get('won', {}).get('total', 0),
-                'losing_trades': trade_analysis.get('lost', {}).get('total', 0),
-                'win_rate': (
-                    trade_analysis.get('won', {}).get('total', 0) /
-                    max(trade_analysis.get('total', {}).get('total', 1), 1) * 100
-                ),
-                'avg_win': trade_analysis.get('won', {}).get('pnl', {}).get('average', 0.0),
-                'avg_loss': trade_analysis.get('lost', {}).get('pnl', {}).get('average', 0.0),
-                'profit_factor': abs(
-                    trade_analysis.get('won', {}).get('pnl', {}).get('total', 0.0) /
-                    max(abs(trade_analysis.get('lost', {}).get('pnl', {}).get('total', 0.0)), 1.0)
-                ),
-            })
+        # Extract key metrics
+        if 'sharpe' in analyzers and analyzers['sharpe']:
+            performance['sharpe_ratio'] = analyzers['sharpe'].get('sharperatio')
         
-        return stats
+        if 'drawdown' in analyzers and analyzers['drawdown']:
+            performance['max_drawdown'] = analyzers['drawdown'].get('max', {}).get('drawdown', 0) / 100
+        
+        if 'trades' in analyzers and analyzers['trades']:
+            trades_data = analyzers['trades']
+            performance['total_trades'] = trades_data.get('total', {}).get('total', 0)
+            performance['winning_trades'] = trades_data.get('won', {}).get('total', 0)
+            performance['losing_trades'] = trades_data.get('lost', {}).get('total', 0)
+        
+        return performance
     
-    def _create_portfolio_dataframe(self, strategy) -> pd.DataFrame:
+    def plot_results(self, **plot_kwargs):
         """
-        Create DataFrame with portfolio value over time.
+        Plot backtest results with sensible defaults.
         
         Args:
-            strategy: Strategy instance
-            
-        Returns:
-            pd.DataFrame with datetime index and portfolio values
+            **plot_kwargs: Arguments passed to bt.Cerebro.plot()
         """
-        if not hasattr(strategy.analyzers, 'timereturn'):
-            logger.warning("TimeReturn analyzer not available, returning empty DataFrame")
-            return pd.DataFrame()
+        default_args = {
+            'style': 'candlestick',
+            'barup': 'green',
+            'bardown': 'red',
+            'volume': True,
+        }
         
-        time_return = strategy.analyzers.timereturn.get_analysis()
+        # Override defaults with user arguments
+        plot_args = {**default_args, **plot_kwargs}
         
-        # Convert to DataFrame
-        dates = list(time_return.keys())
-        values = [self.broker.startingcash * (1 + ret) for ret in time_return.values()]
-        
-        portfolio_df = pd.DataFrame({
-            'datetime': dates,
-            'portfolio_value': values
-        })
-        portfolio_df = portfolio_df.set_index('datetime')
-        
-        return portfolio_df
+        try:
+            print("📊 Opening interactive plot...")
+            self.plot(**plot_args)
+            print("✅ Plot displayed successfully!")
+        except Exception as e:
+            print(f"❌ Plot failed: {e}")
+            print("💡 Try installing matplotlib: pip install matplotlib")
 
 
-# Usage example in comments:
-"""
-# Basic usage example:
-
-import backtrader as bt
-import pandas as pd
-from backtesting.engine import SandboxEngine
-
-# Define a simple strategy
-class SMACrossStrategy(bt.Strategy):
-    params = (
-        ('fast_period', 10),
-        ('slow_period', 30),
+# Example usage function
+def run_example():
+    """Example of using the sandbox engine with best practices."""
+    from datetime import datetime, timedelta
+    from bt_sandbox.strategies.rsi_strategy import RSIBacktraderStrategy
+    
+    # Create enhanced engine with realistic settings
+    engine = SandboxEngine(
+        cash=100000.0,          # $100k starting cash
+        commission=0.0005,      # 0.05% commission
+        slippage_perc=0.0001,   # 0.01% slippage
+        sizer_percent=10.0      # 10% position sizing
     )
     
-    def __init__(self):
-        self.fast_ma = bt.indicators.SMA(self.data.close, period=self.p.fast_period)
-        self.slow_ma = bt.indicators.SMA(self.data.close, period=self.p.slow_period)
-        self.crossover = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)
-        self.order = None
+    # Add Yahoo Finance data (recommended approach)
+    engine.add_yahoo_data(
+        symbol='AAPL',
+        fromdate=datetime(2023, 1, 1),
+        todate=datetime(2024, 1, 1),
+        timeframe=bt.TimeFrame.Days
+    )
     
-    def next(self):
-        if self.order:
-            return
-            
-        if self.crossover > 0 and not self.position:
-            self.order = self.buy(size=0.5)  # Buy 0.5 shares (fractional)
-        elif self.crossover < 0 and self.position:
-            self.order = self.sell()
+    # Run backtest
+    results = engine.run_backtest(
+        RSIBacktraderStrategy,
+        rsi_period=14,
+        oversold=30,
+        overbought=70,
+        printlog=True
+    )
     
-    def notify_order(self, order):
-        if order.status == order.Completed:
-            self.order = None
+    # Display results
+    print("\n" + "="*60)
+    print("📊 BACKTEST RESULTS")
+    print("="*60)
+    print(f"💰 Final Value: ${results['end_value']:,.2f}")
+    print(f"📈 Total Return: {results['total_return_pct']:.2f}%")
+    
+    if results.get('sharpe_ratio'):
+        print(f"📊 Sharpe Ratio: {results['sharpe_ratio']:.2f}")
+    
+    if results.get('max_drawdown'):
+        print(f"📉 Max Drawdown: {results['max_drawdown']:.2%}")
+    
+    print(f"🔄 Total Trades: {results.get('total_trades', 0)}")
+    print("="*60)
+    
+    # Plot results
+    engine.plot_results()
 
-# Load data and run backtest
-data = pd.read_csv('market_data/BTCUSDT_1h.csv')
 
-engine = SandboxEngine(cash=50000, commission=0.001)
-engine.add_data_feed(data)
-
-stats, portfolio_df = engine.run_backtest(
-    SMACrossStrategy,
-    params={'fast_period': 20, 'slow_period': 50}
-)
-
-print(f"Total Return: {stats['total_return']:.2%}")
-print(f"Sharpe Ratio: {stats.get('sharpe_ratio', 'N/A')}")
-print(f"Max Drawdown: {stats.get('max_drawdown', 0):.2%}")
-print(f"Win Rate: {stats.get('win_rate', 0):.1f}%")
-
-# Fractional sizing works out of the box!
-# The engine successfully handles 0.5 shares, 1.7 shares, etc.
-"""
+if __name__ == "__main__":
+    run_example()

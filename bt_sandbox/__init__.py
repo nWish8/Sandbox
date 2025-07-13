@@ -15,23 +15,20 @@ __version__ = "1.0.0"
 __author__ = "BT Sandbox Team"
 
 # Import main components for easy access
-from .strategies import RSIBacktraderStrategy
-from .strategies.improved_strategies import ImprovedRSIStrategy, ImprovedMAStrategy, SignalMAStrategy
+from .strategies import RSIBacktraderStrategy, MovingAverageCrossStrategy, BollingerBandsStrategy
 from .backtesting import SandboxEngine
-from .backtesting.enhanced_engine import EnhancedEngine
 from .datafeeds import DataManager
 from .datafeeds.providers import YahooFinanceProvider, CSVProvider
 
 __all__ = [
-    # Legacy components
+    # Core strategies (now using best practices)
     "RSIBacktraderStrategy",
+    "MovingAverageCrossStrategy",
+    "BollingerBandsStrategy", 
+    # Core engine (now enhanced)
     "SandboxEngine", 
     "DataManager",
-    # Enhanced components (recommended)
-    "ImprovedRSIStrategy",
-    "ImprovedMAStrategy", 
-    "SignalMAStrategy",
-    "EnhancedEngine",
+    # Providers
     "YahooFinanceProvider",
     "CSVProvider",
 ]

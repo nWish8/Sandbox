@@ -1,137 +1,266 @@
 """
-RSI Strategy for Backtrader.
+Improved RSI strategy following Backtrader best practices.
 
-This module contains a Backtrader-compatible RSI strategy that buys when RSI
-is oversold and sells when RSI is overbought.
+This strategy demonstrates:
+1. Proper indicator initialization in __init__
+2. Efficient signal processing in next()
+3. Clean order management
+4. Realistic broker configuration
 """
 
 import backtrader as bt
-from typing import Any
+from datetime import datetime
 
 
 class RSIBacktraderStrategy(bt.Strategy):
     """
-    RSI-based trading strategy for Backtrader with reversal cross signals.
+    RSI Reversal Strategy with Backtrader best practices.
     
-    This strategy:
-    - Buys when RSI crosses above the oversold threshold (reversal from oversold)
-    - Sells when RSI crosses below the overbought threshold (reversal from overbought)
-    - Only takes one position at a time
-    - Uses configurable position sizing
-    
-    Parameters:
-        rsi_period (int): Period for RSI calculation (default: 14)
-        oversold (float): RSI level considered oversold (default: 30)
-        overbought (float): RSI level considered overbought (default: 70)
-        position_size (float): Fraction of available cash to use (default: 0.95)
-        printlog (bool): Whether to print trade logs (default: True)
+    Strategy Logic:
+    - Buy when RSI crosses above oversold level (30)
+    - Sell when RSI crosses below overbought level (70)
+    - Uses proper indicator initialization for efficiency
     """
     
+    # Strategy parameters
     params = (
-        ('rsi_period', 14),
-        ('oversold', 35),
-        ('overbought', 65),
-        ('position_size', 0.95),
-        ('printlog', True),
+        ('rsi_period', 14),        # RSI calculation period
+        ('oversold', 30),          # Oversold threshold
+        ('overbought', 70),        # Overbought threshold  
+        ('position_size', 0.95),   # Position size as fraction of available cash
+        ('printlog', True),        # Enable trade logging
     )
     
     def __init__(self):
-        """Initialize the strategy with RSI indicator and tracking variables."""
-        # Create RSI indicator
+        """Initialize indicators and signals."""
+        # Keep reference to the close price
+        self.dataclose = self.datas[0].close
+        
+        # Initialize indicators in __init__ for efficiency
         self.rsi = bt.indicators.RSI(
-            self.data.close, 
-            period=self.params.rsi_period  # type: ignore
+            self.datas[0].close,
+            period=self.params.rsi_period
         )
         
-        # Track orders and trades
-        self.order: Any = None
-        self.trade_count = 0
+        # Keep track of pending orders
+        self.order = None
         
-        # Track previous RSI value for cross detection
-        self.prev_rsi = None
+        # Track trade statistics
+        self.trades_count = 0
         
         # Log strategy initialization
-        if self.params.printlog:  # type: ignore
-            print(f"RSI Reversal Cross Strategy initialized:")
-            print(f"  - RSI Period: {self.params.rsi_period}")  # type: ignore
-            print(f"  - Oversold Level: {self.params.oversold}")  # type: ignore
-            print(f"  - Overbought Level: {self.params.overbought}")  # type: ignore
-            print(f"  - Position Size: {self.params.position_size * 100:.1f}%")  # type: ignore
-            print(f"  - Trading on reversal crosses only")
+        if self.params.printlog:
+            print("-" * 50)
+            print("RSI Reversal Strategy initialized:")
+            print(f"  - RSI Period: {self.params.rsi_period}")
+            print(f"  - Oversold Level: {self.params.oversold}")
+            print(f"  - Overbought Level: {self.params.overbought}")
+            print(f"  - Position Size: {self.params.position_size * 100:.1f}%")
+            print(f"  - Using efficient indicator initialization")
+            print("-" * 50)
     
     def next(self):
-        """Execute strategy logic on each bar."""
-        # Check if we have a pending order
+        """Process each bar of data."""
+        # Skip if we have a pending order
         if self.order:
             return
         
-        # Skip if RSI is not ready yet (need at least 2 values for cross detection)
-        if len(self.rsi) < 2:
-            return
+        # Check if we are in the market
+        if not self.position:
+            # We are not in the market, look for buy signal
+            # Buy when RSI crosses above oversold level
+            if (len(self.rsi) > 1 and 
+                self.rsi[-1] <= self.params.oversold and 
+                self.rsi[0] > self.params.oversold):
+                
+                # Calculate position size
+                size = (self.broker.get_cash() * self.params.position_size) / self.dataclose[0]
+                
+                # Buy signal
+                self.order = self.buy(size=size)
+                
+                if self.params.printlog:
+                    print(f"BUY signal at ${self.dataclose[0]:.2f} "
+                          f"(RSI cross above {self.params.oversold}: "
+                          f"{self.rsi[-1]:.1f} -> {self.rsi[0]:.1f}) "
+                          f"on {self.datas[0].datetime.date(0)}")
         
-        current_rsi = self.rsi[0]
-        prev_rsi = self.rsi[-1] if len(self.rsi) > 1 else None
-        current_price = self.data.close[0]
-        current_datetime = bt.num2date(self.data.datetime[0])
-        
-        # Check position size
-        position_size = self.position.size if self.position else 0
-        
-        # Buy signal: RSI crosses above oversold level (reversal from oversold)
-        # Previous RSI was below oversold, current RSI is above oversold
-        if (prev_rsi is not None and 
-            prev_rsi < self.params.oversold and  # type: ignore
-            current_rsi >= self.params.oversold and  # type: ignore
-            position_size == 0):
-            
-            if self.params.printlog:  # type: ignore
-                print(f"BUY signal at ${current_price:.2f} (RSI cross above {self.params.oversold}: {prev_rsi:.1f} -> {current_rsi:.1f}) on {current_datetime.strftime('%Y-%m-%d %H:%M')}")  # type: ignore
-            
-            # Calculate position size based on available cash
-            cash = self.broker.get_cash()
-            size = (cash * self.params.position_size) / current_price  # type: ignore
-            self.order = self.buy(size=size)
-            
-        # Sell signal: RSI crosses below overbought level (reversal from overbought)
-        # Previous RSI was above overbought, current RSI is below overbought
-        elif (prev_rsi is not None and 
-              prev_rsi > self.params.overbought and  # type: ignore
-              current_rsi <= self.params.overbought and  # type: ignore
-              position_size > 0):
-            
-            if self.params.printlog:  # type: ignore
-                print(f"SELL signal at ${current_price:.2f} (RSI cross below {self.params.overbought}: {prev_rsi:.1f} -> {current_rsi:.1f}) on {current_datetime.strftime('%Y-%m-%d %H:%M')}")  # type: ignore
-            # Close the entire position
-            self.order = self.close()
+        else:
+            # We are in the market, look for sell signal
+            # Sell when RSI crosses below overbought level
+            if (len(self.rsi) > 1 and 
+                self.rsi[-1] >= self.params.overbought and 
+                self.rsi[0] < self.params.overbought):
+                
+                # Sell signal
+                self.order = self.sell()
+                
+                if self.params.printlog:
+                    print(f"SELL signal at ${self.dataclose[0]:.2f} "
+                          f"(RSI cross below {self.params.overbought}: "
+                          f"{self.rsi[-1]:.1f} -> {self.rsi[0]:.1f}) "
+                          f"on {self.datas[0].datetime.date(0)}")
     
     def notify_order(self, order):
-        """Handle order notifications."""
+        """Handle order status notifications."""
+        if order.status in [order.Submitted, order.Accepted]:
+            # Order submitted/accepted - nothing to do
+            return
+        
+        # Check if an order has been completed
         if order.status in [order.Completed]:
             if order.isbuy():
-                if self.params.printlog:  # type: ignore
-                    print(f"BUY EXECUTED: Price: ${order.executed.price:.2f}, Size: {order.executed.size:.4f}")
-            else:
-                if self.params.printlog:  # type: ignore
-                    print(f"SELL EXECUTED: Price: ${order.executed.price:.2f}, Size: {order.executed.size:.4f}")
-            self.order = None
-            
+                if self.params.printlog:
+                    print(f"BUY EXECUTED: Price: ${order.executed.price:.2f}, "
+                          f"Size: {order.executed.size:.4f}")
+            else:  # Sell
+                if self.params.printlog:
+                    print(f"SELL EXECUTED: Price: ${order.executed.price:.2f}, "
+                          f"Size: {order.executed.size:.4f}")
+        
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            if self.params.printlog:  # type: ignore
+            if self.params.printlog:
                 print(f"Order {order.status}")
-            self.order = None
+        
+        # Reset order reference
+        self.order = None
     
     def notify_trade(self, trade):
         """Handle trade notifications."""
-        if trade.isclosed:
-            self.trade_count += 1
-            pnl = trade.pnl
-            pnl_pct = (pnl / trade.value) * 100 if trade.value != 0 else 0
-            
-            if self.params.printlog:  # type: ignore
-                print(f"TRADE #{self.trade_count} CLOSED: PnL: ${pnl:.2f} ({pnl_pct:.2f}%)")
+        if not trade.isclosed:
+            return
+        
+        self.trades_count += 1
+        
+        if self.params.printlog:
+            print(f"TRADE #{self.trades_count} CLOSED: "
+                  f"PnL: ${trade.pnl:.2f} ({trade.pnlcomm:.2f}%)")
     
     def stop(self):
         """Called when the strategy finishes."""
-        if self.params.printlog:  # type: ignore
-            final_value = self.broker.get_value()
+        if self.params.printlog:
+            final_value = self.broker.getvalue()
             print(f"Strategy finished with portfolio value: ${final_value:,.2f}")
+
+
+# Additional improved strategies for variety
+class MovingAverageCrossStrategy(bt.Strategy):
+    """
+    Moving Average Crossover strategy with best practices.
+    
+    Demonstrates efficient indicator usage and signal-based logic.
+    """
+    
+    params = (
+        ('fast_period', 20),       # Fast MA period
+        ('slow_period', 50),       # Slow MA period
+        ('position_size', 0.95),   # Position size
+        ('printlog', True),        # Enable logging
+    )
+    
+    def __init__(self):
+        """Initialize indicators efficiently."""
+        self.dataclose = self.datas[0].close
+        
+        # Create moving averages
+        self.sma_fast = bt.indicators.SMA(period=self.params.fast_period)
+        self.sma_slow = bt.indicators.SMA(period=self.params.slow_period)
+        
+        # Create crossover signal
+        self.crossover = bt.indicators.CrossOver(self.sma_fast, self.sma_slow)
+        
+        # Track orders and trades
+        self.order = None
+        self.trades_count = 0
+        
+        if self.params.printlog:
+            print("-" * 50)
+            print("Moving Average Crossover Strategy initialized:")
+            print(f"  - Fast MA: {self.params.fast_period} periods")
+            print(f"  - Slow MA: {self.params.slow_period} periods")
+            print(f"  - Position Size: {self.params.position_size * 100:.1f}%")
+            print("-" * 50)
+    
+    def next(self):
+        """Process each bar."""
+        if self.order:
+            return
+        
+        if not self.position:
+            # Look for buy signal (fast MA crosses above slow MA)
+            if self.crossover > 0:
+                size = (self.broker.get_cash() * self.params.position_size) / self.dataclose[0]
+                self.order = self.buy(size=size)
+                
+                if self.params.printlog:
+                    print(f"BUY signal at ${self.dataclose[0]:.2f} "
+                          f"(MA crossover: {self.sma_fast[0]:.2f} > {self.sma_slow[0]:.2f}) "
+                          f"on {self.datas[0].datetime.date(0)}")
+        
+        else:
+            # Look for sell signal (fast MA crosses below slow MA)
+            if self.crossover < 0:
+                self.order = self.sell()
+                
+                if self.params.printlog:
+                    print(f"SELL signal at ${self.dataclose[0]:.2f} "
+                          f"(MA crossover: {self.sma_fast[0]:.2f} < {self.sma_slow[0]:.2f}) "
+                          f"on {self.datas[0].datetime.date(0)}")
+    
+    def notify_order(self, order):
+        """Handle order notifications."""
+        if order.status in [order.Submitted, order.Accepted]:
+            return
+        
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                if self.params.printlog:
+                    print(f"BUY EXECUTED: Price: ${order.executed.price:.2f}, "
+                          f"Size: {order.executed.size:.4f}")
+            else:
+                if self.params.printlog:
+                    print(f"SELL EXECUTED: Price: ${order.executed.price:.2f}, "
+                          f"Size: {order.executed.size:.4f}")
+        
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            if self.params.printlog:
+                print(f"Order {order.status}")
+        
+        self.order = None
+    
+    def notify_trade(self, trade):
+        """Handle trade notifications."""
+        if not trade.isclosed:
+            return
+        
+        self.trades_count += 1
+        
+        if self.params.printlog:
+            print(f"TRADE #{self.trades_count} CLOSED: "
+                  f"PnL: ${trade.pnl:.2f} ({trade.pnlcomm:.2f}%)")
+
+
+class SignalMAStrategy(bt.SignalStrategy):
+    """
+    Concise signal-based Moving Average strategy.
+    
+    Demonstrates bt.SignalStrategy for very short strategy implementations.
+    """
+    
+    params = (
+        ('fast_period', 20),
+        ('slow_period', 50),
+    )
+    
+    def __init__(self):
+        """Initialize with signal-based approach."""
+        # Create the crossover signal and add it as a LONG signal
+        self.signal_add(
+            bt.SIGNAL_LONG,
+            bt.indicators.CrossOver(
+                bt.indicators.SMA(period=self.params.fast_period),
+                bt.indicators.SMA(period=self.params.slow_period)
+            )
+        )
+        
+        print(f"Signal-based MA Strategy: {self.params.fast_period}/{self.params.slow_period}")
