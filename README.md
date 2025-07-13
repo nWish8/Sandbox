@@ -101,6 +101,26 @@ The system will also open an interactive chart showing:
 - **Create custom strategies**: Extend the `bt_sandbox.strategies` module
 - **Fetch fresh data**: Use `python fetch_btc_data.py` to get latest market data
 
+### 5. Enhanced Features (Recommended)
+
+For more advanced usage with Backtrader best practices:
+
+```bash
+# Run enhanced demo with Yahoo Finance data
+python -m bt_sandbox.enhanced_main
+
+# Use improved strategies in your code
+from bt_sandbox import EnhancedEngine, ImprovedRSIStrategy
+```
+
+**Enhanced Features:**
+
+- 🎯 **Native Yahoo Finance Integration**: Direct Backtrader data feeds (no manual downloads)
+- ⚙️ **Realistic Broker Settings**: Proper commission, slippage, and position sizing
+- 📊 **Efficient Strategies**: Indicator initialization in `__init__` for better performance
+- 🔧 **Signal-Based Strategies**: Concise strategy implementations with `bt.SignalStrategy`
+- 📈 **Professional Analytics**: Comprehensive performance metrics and plotting
+
 ## 📁 Project Structure
 
 ```text

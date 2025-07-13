@@ -6,11 +6,11 @@ for fetching market data from various sources.
 """
 
 from .manager import DataManager
-from .providers import CSVProvider, BinanceProvider, YahooProvider
+from .providers import CSVProvider, BinanceProvider, YahooFinanceProvider
 
 __all__ = [
     "DataManager",
-    "CSVProvider", 
-    "BinanceProvider",
-    "YahooProvider",
+    "CSVProvider",
+    "BinanceProvider", 
+    "YahooFinanceProvider",
 ]

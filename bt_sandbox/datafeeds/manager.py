@@ -5,12 +5,15 @@ This module provides a unified interface for accessing market data from
 multiple providers, with caching, fallback mechanisms, and data validation.
 """
 
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, TYPE_CHECKING
 import pandas as pd
 from datetime import datetime
 import logging
 from pathlib import Path
 
+# Type hints
+if TYPE_CHECKING:
+    from .providers.base_provider import BaseProvider
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +50,8 @@ class DataManager:
         self.cache_enabled = self.config.get('cache_enabled', True)
         self.default_provider = self.config.get('default_provider', 'csv')
         
-        # Initialize providers
-        self.providers: Dict[str, BaseDataProvider] = {}
+        # Initialize providers dictionary
+        self.providers: Dict[str, Any] = {}
         self._init_providers()
         
         # Global cache
@@ -60,6 +63,7 @@ class DataManager:
         """Initialize all configured data providers."""
         # Always initialize CSV provider (for local data)
         try:
+            from .providers.csv_provider import CSVProvider
             csv_config = self.config.get('csv', {})
             self.providers['csv'] = CSVProvider(csv_config)
             logger.info("CSV provider initialized")
@@ -69,6 +73,7 @@ class DataManager:
         # Initialize Binance provider if configured
         if 'binance' in self.config:
             try:
+                from .providers.binance_provider import BinanceProvider
                 binance_config = self.config['binance']
                 self.providers['binance'] = BinanceProvider(binance_config)
                 logger.info("Binance provider initialized")
@@ -78,8 +83,9 @@ class DataManager:
         # Initialize Yahoo provider if configured
         if 'yahoo' in self.config:
             try:
+                from .providers.yahoo_provider import YahooFinanceProvider
                 yahoo_config = self.config['yahoo']
-                self.providers['yahoo'] = YahooProvider(yahoo_config)
+                self.providers['yahoo'] = YahooFinanceProvider(yahoo_config)
                 logger.info("Yahoo provider initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize Yahoo provider: {e}")
@@ -303,7 +309,7 @@ class DataManager:
                     return True
             return False
     
-    def add_provider(self, name: str, provider: BaseDataProvider):
+    def add_provider(self, name: str, provider: Any):
         """
         Add a new data provider.
         
