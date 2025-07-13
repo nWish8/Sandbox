@@ -1,7 +1,7 @@
 """
 Simplified main entry point using Backtrader engine.
 
-This script runs trading strategies using the enhanced Backtrader integration 
+This script runs trading strategies using the enhanced Backtrader integration
 and the modular strategy implementations from the strategies folder.
 """
 
@@ -52,7 +52,7 @@ def main():
     # Initialize Backtrader engine
     print("3. Setting up Backtrader engine...")
     engine = SandboxEngine(
-        cash=100000.0,
+        cash=1000.0,
         commission=0.001  # 0.1% commission
     )
     
@@ -73,7 +73,7 @@ def main():
         
         print("-" * 40)
         print("5. Backtest Results:")
-        print(f"   💵 Starting Value: ${results.get('starting_value', 0):,.2f}")
+        print(f"   💵 Starting Value: $1,000.00")
         print(f"   💰 Final Value:    ${results.get('final_value', 0):,.2f}")
         print(f"   📈 Total Return:   {results.get('total_return', 0):.2%}")
         
@@ -92,6 +92,17 @@ def main():
         
         print("\n📊 Portfolio tracking enabled. Check portfolio DataFrame for detailed progression.")
         
+        # Plot the results
+        print("6. Displaying backtest results chart...")
+        try:
+            # The engine is itself a cerebro instance (SandboxEngine extends bt.Cerebro)
+            print("   📈 Opening Backtrader plot window...")
+            engine.plot(style='candlestick', barup='green', bardown='red')
+            print("   ✓ Plot window opened successfully!")
+        except Exception as plot_error:
+            print(f"   ⚠️  Plotting failed: {plot_error}")
+            print("   📊 Results are still valid, but chart display is unavailable")
+        
     except Exception as e:
         print(f"❌ Backtest failed: {e}")
         import traceback
@@ -101,6 +112,7 @@ def main():
     print("=" * 60)
     print("✅ Backtest completed successfully!")
     print("=" * 60)
+
 
 
 if __name__ == "__main__":
