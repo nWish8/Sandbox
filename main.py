@@ -1,131 +1,17 @@
 """
 Simplified main entry point using Backtrader engine.
 
-This script runs a basic moving average crossover strategy using the enhanced
-Backtrader integration without the old GUI components.
+This script runs trading strategies using the enhanced Backtrader integration 
+and the modular strategy implementations from the strategies folder.
 """
 
 import backtrader as bt
 from data_pipeline import DataManager
 from backtesting.engine import SandboxEngine
+from strategies.rsi_backtrader import RSIBacktraderStrategy
+from strategies.ma_crossover_backtrader import MovingAverageCrossStrategy
 import sys
 from typing import Any
-
-
-class RSIStrategy(bt.Strategy):
-    """
-    RSI-based trading strategy for Backtrader.
-    Buys when RSI < oversold level, sells when RSI > overbought level.
-    """
-    params = (
-        ('rsi_period', 14),
-        ('oversold', 30),
-        ('overbought', 70),
-        ('position_size', 0.95),  # Use 95% of available cash
-    )
-    
-    def __init__(self):
-        # Create RSI indicator
-        self.rsi = bt.indicators.RSI(self.data.close, period=self.params.rsi_period)  # type: ignore
-        
-        # Track orders and trades
-        self.order: Any = None
-        self.trade_count = 0
-    
-    def next(self):
-        # Check if we have a pending order
-        if self.order:
-            return
-        
-        # Skip if RSI is not ready yet
-        if len(self.rsi) < 1:
-            return
-        
-        current_rsi = self.rsi[0]
-        
-        # Buy signal: RSI oversold
-        if current_rsi < self.params.oversold and not self.position:  # type: ignore
-            print(f"BUY signal at {self.data.close[0]:.2f} (RSI: {current_rsi:.1f}) on {self.data.datetime.date(0)}")
-            self.order = self.buy(size=self.params.position_size)  # type: ignore
-            
-        # Sell signal: RSI overbought
-        elif current_rsi > self.params.overbought and self.position:  # type: ignore
-            print(f"SELL signal at {self.data.close[0]:.2f} (RSI: {current_rsi:.1f}) on {self.data.datetime.date(0)}")
-            self.order = self.sell()
-    
-    def notify_order(self, order):
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                print(f"BUY EXECUTED: Price: {order.executed.price:.2f}, Size: {order.executed.size:.4f}")
-            else:
-                print(f"SELL EXECUTED: Price: {order.executed.price:.2f}, Size: {order.executed.size:.4f}")
-            self.order = None
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            print(f"Order {order.status}")
-            self.order = None
-    
-    def notify_trade(self, trade):
-        if trade.isclosed:
-            self.trade_count += 1
-            pnl = trade.pnl
-            pnl_pct = (pnl / trade.value) * 100 if trade.value != 0 else 0
-            print(f"TRADE #{self.trade_count} CLOSED: PnL: ${pnl:.2f} ({pnl_pct:.2f}%)")
-
-
-class MovingAverageCrossStrategy(bt.Strategy):
-    """
-    Simple moving average crossover strategy for Backtrader.
-    """
-    params = (
-        ('fast_period', 3),
-        ('slow_period', 7),
-        ('position_size', 0.95),  # Use 95% of available cash
-    )
-    
-    def __init__(self):
-        # Create moving averages
-        self.fast_ma = bt.indicators.SMA(self.data.close, period=self.params.fast_period)  # type: ignore
-        self.slow_ma = bt.indicators.SMA(self.data.close, period=self.params.slow_period)  # type: ignore
-        
-        # Create crossover signal
-        self.crossover = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)  # type: ignore
-        
-        # Track orders and trades
-        self.order: Any = None
-        self.trade_count = 0
-    
-    def next(self):
-        # Check if we have a pending order
-        if self.order:
-            return
-        
-        # Buy signal: fast MA crosses above slow MA
-        if self.crossover > 0 and not self.position:
-            print(f"BUY signal at {self.data.close[0]:.2f} on {self.data.datetime.date(0)}")
-            self.order = self.buy(size=self.params.position_size)  # type: ignore
-            
-        # Sell signal: fast MA crosses below slow MA  
-        elif self.crossover < 0 and self.position:
-            print(f"SELL signal at {self.data.close[0]:.2f} on {self.data.datetime.date(0)}")
-            self.order = self.sell()
-    
-    def notify_order(self, order):
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                print(f"BUY EXECUTED: Price: {order.executed.price:.2f}, Size: {order.executed.size:.4f}")
-            else:
-                print(f"SELL EXECUTED: Price: {order.executed.price:.2f}, Size: {order.executed.size:.4f}")
-            self.order = None
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            print(f"Order {order.status}")
-            self.order = None
-    
-    def notify_trade(self, trade):
-        if trade.isclosed:
-            self.trade_count += 1
-            pnl = trade.pnl
-            pnl_pct = (pnl / trade.value) * 100 if trade.value != 0 else 0
-            print(f"TRADE #{self.trade_count} CLOSED: PnL: ${pnl:.2f} ({pnl_pct:.2f}%)")
 
 
 def main():
@@ -176,12 +62,13 @@ def main():
     
     try:
         results, portfolio = engine.run_backtest(
-            RSIStrategy,
+            RSIBacktraderStrategy,
             data=data,
             rsi_period=14,
             oversold=30,
             overbought=70,
-            position_size=0.95
+            position_size=0.95,
+            printlog=True
         )
         
         print("-" * 40)
