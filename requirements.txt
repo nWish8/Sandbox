@@ -2,7 +2,7 @@
 # Pinned to known-good versions as of July 2025
 
 # Core backtesting engine
-backtrader==1.9.78.123
+backtesting==0.6.4
 
 # Data manipulation and analysis
 pandas==2.3.1
@@ -14,31 +14,4 @@ ccxt==4.4.92
 
 # Visualization and plotting
 matplotlib==3.10.3
-PyQt5==5.15.11
-PyQt5-Qt5==5.15.2
-PyQt5-sip==12.17.0
-pyqtgraph==0.13.7
-finplot==1.9.7
-
-# HTTP requests and web scraping
-requests==2.32.4
-aiohttp==3.12.13
-beautifulsoup4==4.13.4
-
-# Date and time handling
-python-dateutil==2.9.0.post0
-pytz==2025.2
-
-# Utilities
-urllib3==2.5.0
-certifi==2025.7.9
-packaging==25.0
-
-# Optional: Machine learning (if needed for advanced strategies)
-# torch==2.7.1
-
-# Development dependencies (uncomment if needed)
-# pytest>=7.0.0
-# pytest-cov>=4.0.0
-# black>=23.0.0
-# flake8>=6.0.0
+# finplot==1.9.7
