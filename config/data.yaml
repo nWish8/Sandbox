@@ -1,0 +1,30 @@
+# config/data.yaml
+symbol: BTCUSDT
+timeframe: 1h
+lookback_days: 30  # Extra history before each window
+training_windows_csv: data_pipeline/market_data/btcusdt_training_windows.csv
+raw_data_dir: data_pipeline/market_data/raw/
+training_data_csv: data_pipeline/training_data/btcusdt_model.csv
+seq_len: 32
+horizon: 12  # For target engineering
+threshold: 0.003  # For simple return-based labeling
+features:
+  - open
+  - high
+  - low
+  - close
+  - volume
+  - rsi
+  - mfi
+  - macd
+  - macd_signal
+  - macd_hist
+  - ema20
+  - ema50
+  - ema200
+  - tenkan_sen
+  - kijun_sen
+  - senkou_span_a
+  - senkou_span_b
+  - chikou_span
+  - log_ret

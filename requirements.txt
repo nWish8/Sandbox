@@ -4,14 +4,23 @@
 # Core backtesting engine
 backtesting==0.6.4
 
+# Machine learning and statistical analysis
+scikit-learn==1.7.0
+torch==2.7.1
+ta==0.11.0
+
 # Data manipulation and analysis
 pandas==2.3.1
 numpy==2.3.1
+
+# Model persistence
+joblib==1.5.1 
 
 # Data providers
 yfinance==0.2.65
 ccxt==4.4.92
 
 # Visualization and plotting
+tqdm==4.67.1
 matplotlib==3.10.3
 # finplot==1.9.7

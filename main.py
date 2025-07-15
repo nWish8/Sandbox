@@ -1,12 +1,11 @@
 # main.py
-
+import datetime as dt
+import pandas as pd
 import multiprocessing
 import backtesting
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
 from data_pipeline.manager import DataManager
-
-import pandas as pd
 
 def SMA(values, n):
     """Simple Moving Average."""
@@ -32,12 +31,16 @@ if __name__ == '__main__':
     # Enable multiprocessing for optimization
     backtesting.Pool = multiprocessing.Pool
 
-    # Set the number of processes (optional, defaults to CPU count)
-    # pool = multiprocessing.Pool(processes=6)  # or 12 for threads
-
-    # Initialize data manager and load dataset
+    # Initialize data manager and specify market data parameters
     manager = DataManager()
-    data = manager.get_dataset("BTCUSD")  # Replace with your dataset name as needed
+    data = manager.get_dataset(
+        "BTC/USDT",
+        start=dt.datetime(2023, 1, 1),
+        end=dt.datetime(2023, 2, 1),
+        timeframe="1h",   # Output timeframe
+        source="ccxt",
+        exchange="binance"
+    )
 
     # Set up and run backtest
     bt = Backtest(
