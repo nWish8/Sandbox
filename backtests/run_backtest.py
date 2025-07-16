@@ -65,10 +65,10 @@ class LSTMStrategy(Strategy):
         sig = self.signal[-1]
         if sig == 1 and not self.position.is_long:
             self.position.close()
-            self.buy(size=0.95)
+            self.buy(size=1)
         elif sig == -1 and not self.position.is_short:
             self.position.close()
-            self.sell(size=0.95)
+            self.sell(size=1)
 
 # Run backtest
 generate_signals()  # First generate
@@ -76,7 +76,7 @@ test_df = pd.read_csv(config['training_data_csv'], parse_dates=['timestamp'])  #
 test_df = test_df.set_index('timestamp')[['open', 'high', 'low', 'close', 'volume']]
 test_df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']  # backtesting.py format
 
-bt = Backtest(test_df, LSTMStrategy, cash=1000000, commission=0.0004, trade_on_close=True)
+bt = Backtest(test_df, LSTMStrategy, commission=0.0004, trade_on_close=True)
 stats = bt.run()
 print(stats)
 bt.plot()  # Uses matplotlib under the hood

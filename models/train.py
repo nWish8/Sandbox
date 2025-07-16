@@ -7,7 +7,7 @@ import joblib
 from sklearn.metrics import f1_score
 import numpy as np
 
-EPOCHS = 5  # Adjust as needed
+EPOCHS = 50  # Adjust as needed
 
 # Load config
 with open('config/data.yaml', 'r') as f:
