@@ -1,7 +1,13 @@
+# Updated: manager.py
+# Changes:
+# - Removed lookback_days logic: Now downloads directly from full_start to full_end without subtracting days.
+# - Removed the per-window download loop; keeps the full history download.
+# - Assumes config has 'full_start' and 'full_end' (add them if not present in data.yaml).
+
 import ccxt
 import pandas as pd
 import yaml
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import json
 
@@ -27,30 +33,22 @@ def download_ohlcv(symbol, timeframe, since, until):
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
     return df
 
-# Load training windows
-windows = pd.read_csv(config['training_windows_csv'], parse_dates=['start_ts', 'end_ts'])
+# Download full history
+since = int(datetime.fromisoformat(config['full_start']).timestamp() * 1000)
+until = int(datetime.fromisoformat(config['full_end']).timestamp() * 1000)
 
+df = download_ohlcv(config['symbol'], config['timeframe'], since, until)
+
+# Save full history
 os.makedirs(config['raw_data_dir'], exist_ok=True)
+filename = f"{config['symbol'].replace('/', '')}_{config['timeframe']}_full_history.csv"
+filepath = os.path.join(config['raw_data_dir'], filename)
+df.to_csv(filepath, index=False, float_format='%.2f')
 
-for idx, row in windows.iterrows():
-    start = row['start_ts']
-    end = row['end_ts']
-    # Add lookback
-    lookback_start = start - timedelta(days=config['lookback_days'])
-    since = int(lookback_start.timestamp() * 1000)
-    until = int(end.timestamp() * 1000)
-    
-    df = download_ohlcv(config['symbol'], config['timeframe'], since, until)
-    
-    # Save per window
-    filename = f"{config['symbol'].replace('/', '')}_{config['timeframe']}_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.csv"
-    filepath = os.path.join(config['raw_data_dir'], filename)
-    df.to_csv(filepath, index=False, float_format='%.2f')
-    
-    # Log provenance (corrected attribute)
-    last_timestamp = exchange.lastRestRequestTimestamp if hasattr(exchange, 'lastRestRequestTimestamp') else 0
-    log = {'ccxt_version': ccxt.__version__, 'download_time': datetime.now().isoformat(), 'api_latency': last_timestamp}
-    with open(filepath.replace('.csv', '.json'), 'w') as f:
-        json.dump(log, f)
-    
-    print(f"Downloaded and saved: {filename}")
+# Log provenance
+last_timestamp = exchange.lastRestRequestTimestamp if hasattr(exchange, 'lastRestRequestTimestamp') else 0
+log = {'ccxt_version': ccxt.__version__, 'download_time': datetime.now().isoformat(), 'api_latency': last_timestamp}
+with open(filepath.replace('.csv', '.json'), 'w') as f:
+    json.dump(log, f)
+
+print(f"Downloaded and saved full history: {filename}")

@@ -1,13 +1,30 @@
-# config/data.yaml
+# Updated: data.yaml
+# Changes:
+# - Added 'test_start' and 'test_end' for backtesting on a separate, unseen period (set after val_end, e.g., '2023-01-01' to '2024-10-01').
+# - Ensure no overlap: train < val < test.
+
 symbol: BTCUSDT
 timeframe: 1h
-lookback_days: 30  # Extra history before each window
 training_windows_csv: data_pipeline/market_data/btcusdt_training_windows.csv
 raw_data_dir: data_pipeline/market_data/raw/
 training_data_csv: data_pipeline/training_data/btcusdt_model.csv
+unscaled_data_csv: data_pipeline/training_data/btcusdt_unscaled.csv  # New: For backtest original scales
 seq_len: 32
 horizon: 12  # For target engineering
 threshold: 0.003  # For simple return-based labeling
+
+full_start: '2017-01-01'  # Example: Start of BTC data
+
+train_end: '2022-01-01'   # Example: End of train period
+
+val_start: '2022-01-01'   # Example: Start of val (after train_end)
+val_end: '2023-01-01'     # Example: End of val
+
+test_start: '2023-01-01'  # Example: Start of test (after val_end)
+test_end: '2024-10-01'    # Example: End of test
+
+full_end: '2024-10-01'    # Example: End of BTC data
+
 features:
   - open
   - high

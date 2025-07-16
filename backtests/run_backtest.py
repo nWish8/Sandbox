@@ -1,3 +1,10 @@
+# Updated: run_backtest.py
+# Changes:
+# - Updated to use 'test_start' and 'test_end' from config for backtesting on a separate test period.
+# - Changed dataset split to 'test' in generate_signals (requires BTCWindowDataset to support 'test').
+# - Filtered unscaled data to test period for backtest DataFrame.
+# - Ensured alignment uses test_df instead of val_df.
+
 import torch
 import pandas as pd
 import yaml
@@ -8,7 +15,6 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.train import BTCLSTM, BTCWindowDataset  # Relative import from project root
-
 from backtesting import Backtest, Strategy
 
 # Load config
@@ -17,20 +23,19 @@ with open('config/data.yaml', 'r') as f:
 
 # Generate signals (inference)
 def generate_signals():
-    # Load full DF to get timestamps
-    full_df = pd.read_csv(config['training_data_csv'], parse_dates=['timestamp'])
-    
-    # Replicate split logic from dataset
-    split_idx = int(len(full_df) * 0.7)
-    val_df = full_df.iloc[split_idx:].reset_index(drop=True)
-    
-    # Create dataset for val split
-    ds = BTCWindowDataset(config['training_data_csv'], config['seq_len'], 'models/scaler.pkl', 'val')
-    
+    # Load full DF to get timestamps (using unscaled for original timestamps)
+    full_df = pd.read_csv(config['unscaled_data_csv'], parse_dates=['timestamp'])
+
+    # Date-based split for test
+    test_df = full_df[(full_df['timestamp'] >= config['test_start']) & (full_df['timestamp'] < config['test_end'])].reset_index(drop=True)
+
+    # Create dataset for test split (uses scaled training_data_csv internally)
+    ds = BTCWindowDataset(config['training_data_csv'], config['seq_len'], 'models/scaler.pkl', 'test')
+
     model = BTCLSTM(n_features=len(ds.features))
     model.load_state_dict(torch.load('models/btc_lstm.pth'))
     model.eval()
-    
+
     signals = []
     with torch.no_grad():
         for i in range(len(ds)):
@@ -41,17 +46,16 @@ def generate_signals():
             # Reverse remap: 0 -> -1 (sell), 1 -> 0 (hold), 2 -> 1 (buy)
             signal = -1 if pred == 0 else (0 if pred == 1 else 1)
             signals.append(signal)
-    
-    # Align with val_df, skipping seq_len rows
-    aligned_df = val_df.iloc[config['seq_len']:].copy()
-    
+
+    # Align with test_df, skipping seq_len rows
+    aligned_df = test_df.iloc[config['seq_len']:].copy()
+
     # Debug: Check lengths
     print(f"Generated signals length: {len(signals)}")
     print(f"Aligned DataFrame length: {len(aligned_df)}")
-    
     if len(signals) != len(aligned_df):
-        raise ValueError("Signal length mismatch after alignment—check split_idx or seq_len")
-    
+        raise ValueError("Signal length mismatch after alignment—check seq_len or date ranges")
+
     aligned_df['signal'] = signals
     aligned_df[['timestamp', 'signal']].to_csv('backtests/inference_signals.csv', index=False)
     print("Signals generated and saved to backtests/inference_signals.csv")
@@ -72,7 +76,10 @@ class LSTMStrategy(Strategy):
 
 # Run backtest
 generate_signals()  # First generate
-test_df = pd.read_csv(config['training_data_csv'], parse_dates=['timestamp'])  # Use full for backtest
+
+# Use unscaled data for backtest, filtered to test period
+unscaled_df = pd.read_csv(config['unscaled_data_csv'], parse_dates=['timestamp'])
+test_df = unscaled_df[(unscaled_df['timestamp'] >= config['test_start']) & (unscaled_df['timestamp'] < config['test_end'])]
 test_df = test_df.set_index('timestamp')[['open', 'high', 'low', 'close', 'volume']]
 test_df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']  # backtesting.py format
 
