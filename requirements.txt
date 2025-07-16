@@ -1,26 +1,35 @@
-# BT Sandbox - Trading Strategy Backtesting Framework
-# Pinned to known-good versions as of July 2025
+# === Core Deep Learning with CUDA (for RTX 4050, CUDA 12.x) ===
+torch==2.7.1          # Existing install, CUDA-enabled (cu121)
+torchvision==0.22.1   # Stick to that torch major version; ensure CUDA-enabled wheel
+torchaudio==2.7.1     # Matches torch version for compatibility
+--extra-index-url https://pypi.ngc.nvidia.com
 
-# Core backtesting engine
-backtesting==0.6.4
-
-# Machine learning and statistical analysis
-scikit-learn==1.7.0
-torch==2.7.1
-ta==0.11.0
-
-# Data manipulation and analysis
+# === Data Manipulation and Science ===
 pandas==2.3.1
 numpy==2.3.1
+scikit-learn==1.7.0
+joblib==1.5.1
 
-# Model persistence
-joblib==1.5.1 
-
-# Data providers
-yfinance==0.2.65
+# === Financial/Trading Data & Technical Indicators ===
+ta==0.11.0
 ccxt==4.4.92
+yfinance==0.2.65   # Optional: for Yahoo Finance/stock data
 
-# Visualization and plotting
-tqdm==4.67.1
+# === Visualization & Progress ===
 matplotlib==3.10.3
-# finplot==1.9.7
+tqdm==4.67.1
+
+# === Backtesting ===
+backtesting==0.6.4
+
+# === Utilities ===
+PyYAML==6.0.2
+
+# === Optional/Extra ===
+bokeh==3.7.3      # If using html/bokeh output for plots
+# finplot==1.9.7  # Optional; uncomment if using advanced financial plotting
+psutil==7.0.0       # Optional for system resource monitoring
+
+# Installation notes:
+# Install with: pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
+# Always keep your NVIDIA GPU drivers up to date for best CUDA performance.

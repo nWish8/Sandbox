@@ -1,15 +1,16 @@
 # Updated: run_backtest.py
-# Changes:
-# - Updated to use 'test_start' and 'test_end' from config for backtesting on a separate test period.
-# - Changed dataset split to 'test' in generate_signals (requires BTCWindowDataset to support 'test').
-# - Filtered unscaled data to test period for backtest DataFrame.
-# - Ensured alignment uses test_df instead of val_df.
+# Optimizations:
+# - Move model and data to GPU for inference.
+# - Use AMP for mixed precision inference.
+# - Parallel data loading with num_workers=12.
 
 import torch
 import pandas as pd
 import yaml
 import sys
 import os
+from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast
 
 # Add project root to path for imports (adjust if needed)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -21,6 +22,8 @@ from backtesting import Backtest, Strategy
 with open('config/data.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # Use RTX 4050
+
 # Generate signals (inference)
 def generate_signals():
     # Load full DF to get timestamps (using unscaled for original timestamps)
@@ -31,21 +34,22 @@ def generate_signals():
 
     # Create dataset for test split (uses scaled training_data_csv internally)
     ds = BTCWindowDataset(config['training_data_csv'], config['seq_len'], 'models/scaler.pkl', 'test')
+    loader = DataLoader(ds, batch_size=128, shuffle=False, num_workers=12)  # Parallel loading
 
-    model = BTCLSTM(n_features=len(ds.features))
+    model = BTCLSTM(n_features=len(ds.features)).to(device)
     model.load_state_dict(torch.load('models/btc_lstm.pth'))
     model.eval()
 
     signals = []
     with torch.no_grad():
-        for i in range(len(ds)):
-            X, _ = ds[i]  # Ignore y for inference
-            X = X.unsqueeze(0)  # Batch dim
-            out = model(X)
-            pred = torch.argmax(out, dim=1).item()
+        for X, _ in loader:  # Ignore y for inference
+            X = X.to(device)
+            with autocast():  # AMP
+                out = model(X)
+            preds = torch.argmax(out, dim=1).cpu().tolist()
             # Reverse remap: 0 -> -1 (sell), 1 -> 0 (hold), 2 -> 1 (buy)
-            signal = -1 if pred == 0 else (0 if pred == 1 else 1)
-            signals.append(signal)
+            batch_signals = [-1 if p == 0 else (0 if p == 1 else 1) for p in preds]
+            signals.extend(batch_signals)
 
     # Align with test_df, skipping seq_len rows
     aligned_df = test_df.iloc[config['seq_len']:].copy()
