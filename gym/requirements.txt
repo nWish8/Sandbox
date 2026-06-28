@@ -1,0 +1,14 @@
+# Signal Gym dependencies (Python 3.13). See gym/spec.md §6.
+# numpy/pandas/scipy/finplot/pyqtgraph/PyQt5/torch are already in the project .venv.
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14
+scipy>=1.11
+gymnasium>=0.29
+lightgbm>=4.0
+stable-baselines3>=2.3
+shap>=0.45
+finplot>=1.9
+pyqtgraph>=0.13
+PyQt5>=5.15
+pytest>=8.0

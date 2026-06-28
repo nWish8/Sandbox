@@ -1,0 +1,450 @@
+{
+  "agent": "sup",
+  "val": {
+    "excess_sharpe": -0.497468895236293,
+    "beat_rate": 0.47236414305620067,
+    "n_bars": 2153
+  },
+  "test": {
+    "excess_sharpe": -0.1890861505450825,
+    "beat_rate": 0.4642553191489362,
+    "n_bars": 2350
+  },
+  "solo_signal_edge": [
+    {
+      "signal": "senkou_span_a_26_period_below_span_b_cloud",
+      "n": 50,
+      "mean_edge": 0.029751946141407748,
+      "hit_rate": 0.62
+    },
+    {
+      "signal": "senkou_span_b_52_period_above_span_a_cloud",
+      "n": 50,
+      "mean_edge": 0.029751946141407748,
+      "hit_rate": 0.62
+    },
+    {
+      "signal": "rsi_bull_div",
+      "n": 29,
+      "mean_edge": 0.011408661018241173,
+      "hit_rate": 0.6507575757575758
+    },
+    {
+      "signal": "mfi_bull_div",
+      "n": 40,
+      "mean_edge": 0.005036816851484551,
+      "hit_rate": 0.5858585858585859
+    },
+    {
+      "signal": "background_color",
+      "n": 485,
+      "mean_edge": 0.0029405071001077717,
+      "hit_rate": 0.542180171758224
+    },
+    {
+      "signal": "buy_signal",
+      "n": 199,
+      "mean_edge": 0.002619962556111476,
+      "hit_rate": 0.5083605679516874
+    },
+    {
+      "signal": "bar_color",
+      "n": 88,
+      "mean_edge": 0.001531426178720036,
+      "hit_rate": 0.5207018602312721
+    },
+    {
+      "signal": "bearish_power_candle",
+      "n": 18,
+      "mean_edge": 0.0007735405908875862,
+      "hit_rate": 0.5416666666666666
+    },
+    {
+      "signal": "rsi_bear_div",
+      "n": 88,
+      "mean_edge": -0.0009691183920143408,
+      "hit_rate": 0.5046428571428572
+    },
+    {
+      "signal": "sell_signal",
+      "n": 204,
+      "mean_edge": -0.0018480279334421735,
+      "hit_rate": 0.441476536403748
+    },
+    {
+      "signal": "continuation_candles",
+      "n": 462,
+      "mean_edge": -0.005191851244271182,
+      "hit_rate": 0.47004466311350335
+    },
+    {
+      "signal": "mfi_bear_div",
+      "n": 92,
+      "mean_edge": -0.009827410279000312,
+      "hit_rate": 0.47099190283400805
+    },
+    {
+      "signal": "senkou_span_b_52_period_below_span_a_cloud",
+      "n": 119,
+      "mean_edge": -0.010233524889738253,
+      "hit_rate": 0.3865546218487395
+    },
+    {
+      "signal": "senkou_span_a_26_period_above_span_b_cloud",
+      "n": 119,
+      "mean_edge": -0.010233524889738253,
+      "hit_rate": 0.3865546218487395
+    },
+    {
+      "signal": "pinbar_and_power_candle",
+      "n": 60,
+      "mean_edge": -0.011369110959742518,
+      "hit_rate": 0.43399100899100895
+    },
+    {
+      "signal": "ao_oscillator",
+      "n": 65,
+      "mean_edge": -0.01410435219447688,
+      "hit_rate": 0.36923076923076925
+    },
+    {
+      "signal": "bullish_power_candle",
+      "n": 33,
+      "mean_edge": -0.017275344311722552,
+      "hit_rate": 0.3680555555555556
+    }
+  ],
+  "condition_edge": [
+    {
+      "condition": "bull_active_count",
+      "value": 2.0,
+      "n": 68,
+      "mean_edge": 0.016309338302298942,
+      "hit_rate": 0.7613636363636364
+    },
+    {
+      "condition": "cloud_state",
+      "value": 0.0,
+      "n": 1684,
+      "mean_edge": 0.0029163582902269657,
+      "hit_rate": 0.5282578580940379
+    },
+    {
+      "condition": "vol_regime",
+      "value": 2.0,
+      "n": 1431,
+      "mean_edge": 0.0019200583018553752,
+      "hit_rate": 0.5202004302960836
+    },
+    {
+      "condition": "bear_active_count",
+      "value": 0.0,
+      "n": 1406,
+      "mean_edge": 0.0018439544408474517,
+      "hit_rate": 0.4995869508012024
+    },
+    {
+      "condition": "cloud_state",
+      "value": -1.0,
+      "n": 343,
+      "mean_edge": 0.0017553045972932685,
+      "hit_rate": 0.45481049562682213
+    },
+    {
+      "condition": "continuation_active",
+      "value": 0.0,
+      "n": 1346,
+      "mean_edge": 0.0014972976360970165,
+      "hit_rate": 0.49826199034395807
+    },
+    {
+      "condition": "bull_active_count",
+      "value": 0.0,
+      "n": 1485,
+      "mean_edge": -0.000247260431061105,
+      "hit_rate": 0.4920973310037645
+    },
+    {
+      "condition": "bear_active_count",
+      "value": 1.0,
+      "n": 647,
+      "mean_edge": -0.0008170371557321386,
+      "hit_rate": 0.49989423074126316
+    },
+    {
+      "condition": "bull_active_count",
+      "value": 1.0,
+      "n": 693,
+      "mean_edge": -0.000818274997744585,
+      "hit_rate": 0.46935911714083217
+    },
+    {
+      "condition": "continuation_active",
+      "value": 1.0,
+      "n": 927,
+      "mean_edge": -0.0024862852911061587,
+      "hit_rate": 0.48816874121693427
+    },
+    {
+      "condition": "cloud_state",
+      "value": 1.0,
+      "n": 246,
+      "mean_edge": -0.0038496720854369424,
+      "hit_rate": 0.45528455284552843
+    },
+    {
+      "condition": "vol_regime",
+      "value": 0.0,
+      "n": 87,
+      "mean_edge": -0.0050178475643459395,
+      "hit_rate": 0.44022869022869027
+    },
+    {
+      "condition": "vol_regime",
+      "value": 1.0,
+      "n": 749,
+      "mean_edge": -0.005382853589746303,
+      "hit_rate": 0.46103853797648753
+    },
+    {
+      "condition": "bear_active_count",
+      "value": 2.0,
+      "n": 138,
+      "mean_edge": -0.005621523981395406,
+      "hit_rate": 0.4569143446852425
+    },
+    {
+      "condition": "bear_active_count",
+      "value": 3.0,
+      "n": 65,
+      "mean_edge": -0.01350266534593803,
+      "hit_rate": 0.40264550264550264
+    }
+  ],
+  "gbt_importances": [
+    {
+      "feature": "fear_greed_index_val",
+      "importance": 3014.6610152721405
+    },
+    {
+      "feature": "atr_14",
+      "importance": 2555.8695633411407
+    },
+    {
+      "feature": "fear_greed_index_slope_3",
+      "importance": 2235.833695411682
+    },
+    {
+      "feature": "vol_20",
+      "importance": 2222.4895046949387
+    },
+    {
+      "feature": "ao_oscillator_val",
+      "importance": 2072.9629380702972
+    },
+    {
+      "feature": "bar_color_bars_since",
+      "importance": 2007.271605014801
+    },
+    {
+      "feature": "bollinger_band_basis_line_slope_3",
+      "importance": 1984.810922384262
+    },
+    {
+      "feature": "background_color_bars_since",
+      "importance": 1684.8386328220367
+    },
+    {
+      "feature": "bollinger_band_lower_line_slope_3",
+      "importance": 1563.9245331287384
+    },
+    {
+      "feature": "mfi_bear_div_bars_since",
+      "importance": 1474.5581727027893
+    },
+    {
+      "feature": "mfi_oscillator_slope_3",
+      "importance": 1394.369733095169
+    },
+    {
+      "feature": "bollinger_band_upper_line_slope_3",
+      "importance": 1391.4215197563171
+    },
+    {
+      "feature": "custom_oscillator_slope_3",
+      "importance": 1357.4895873069763
+    },
+    {
+      "feature": "ret_6",
+      "importance": 1356.0331395864487
+    },
+    {
+      "feature": "mfi_oscillator_val",
+      "importance": 1326.841903090477
+    },
+    {
+      "feature": "pinbar_and_power_candle_bars_since",
+      "importance": 1305.901657819748
+    },
+    {
+      "feature": "rsi_val",
+      "importance": 1291.413828611374
+    },
+    {
+      "feature": "kinjun_sen_26_period_slope_3",
+      "importance": 1289.5712451934814
+    },
+    {
+      "feature": "ao_oscillator_slope_3",
+      "importance": 1282.9743064641953
+    },
+    {
+      "feature": "drawdown_20",
+      "importance": 1232.9345433712006
+    },
+    {
+      "feature": "senkou_span_a_26_period_below_span_b_cloud_val",
+      "importance": 1195.7243008613586
+    },
+    {
+      "feature": "senkou_span_a_26_period_above_span_b_cloud_slope_3",
+      "importance": 1164.8209228515625
+    },
+    {
+      "feature": "volume_indicator_val",
+      "importance": 1106.1497914791107
+    },
+    {
+      "feature": "senkou_span_a_26_period_above_span_b_cloud_val",
+      "importance": 1093.2080628871918
+    },
+    {
+      "feature": "custom_oscillator_val",
+      "importance": 1081.0594418048859
+    },
+    {
+      "feature": "senkou_span_b_52_period_above_span_a_cloud_val",
+      "importance": 1064.606412410736
+    },
+    {
+      "feature": "bearish_power_candle_bars_since",
+      "importance": 1039.8684816360474
+    },
+    {
+      "feature": "ret_1",
+      "importance": 1016.3225197792053
+    },
+    {
+      "feature": "bullish_power_candle_bars_since",
+      "importance": 1013.7759027481079
+    },
+    {
+      "feature": "bollinger_band_lower_line_val",
+      "importance": 982.3182120323181
+    }
+  ],
+  "ablation_deltas": [
+    {
+      "feature": "bar_color_bars_since",
+      "delta_sharpe": 0.10198002110041893
+    },
+    {
+      "feature": "fear_greed_index_val",
+      "delta_sharpe": 0.06787306178115504
+    },
+    {
+      "feature": "bollinger_band_upper_line_slope_3",
+      "delta_sharpe": 0.05739639849079159
+    },
+    {
+      "feature": "bollinger_band_basis_line_slope_3",
+      "delta_sharpe": 0.054020302818640675
+    },
+    {
+      "feature": "fear_greed_index_slope_3",
+      "delta_sharpe": 0.03019763751863369
+    },
+    {
+      "feature": "bollinger_band_lower_line_slope_3",
+      "delta_sharpe": 0.024368967554396548
+    },
+    {
+      "feature": "drawdown_20",
+      "delta_sharpe": 0.019848439993819134
+    },
+    {
+      "feature": "background_color_bars_since",
+      "delta_sharpe": 0.019150955470549902
+    },
+    {
+      "feature": "kinjun_sen_26_period_slope_3",
+      "delta_sharpe": 0.017411939608661497
+    },
+    {
+      "feature": "pinbar_and_power_candle_bars_since",
+      "delta_sharpe": 0.016310344034821567
+    },
+    {
+      "feature": "ret_6",
+      "delta_sharpe": -0.0014145633973661198
+    },
+    {
+      "feature": "mfi_oscillator_slope_3",
+      "delta_sharpe": -0.008149388334227348
+    },
+    {
+      "feature": "ao_oscillator_slope_3",
+      "delta_sharpe": -0.011775702049738768
+    },
+    {
+      "feature": "mfi_bear_div_bars_since",
+      "delta_sharpe": -0.013034708902126713
+    },
+    {
+      "feature": "custom_oscillator_slope_3",
+      "delta_sharpe": -0.017850994792050434
+    },
+    {
+      "feature": "rsi_val",
+      "delta_sharpe": -0.021068331787391315
+    },
+    {
+      "feature": "ao_oscillator_val",
+      "delta_sharpe": -0.02887931796858162
+    },
+    {
+      "feature": "mfi_oscillator_val",
+      "delta_sharpe": -0.0334512913486093
+    },
+    {
+      "feature": "vol_20",
+      "delta_sharpe": -0.0430831584421934
+    },
+    {
+      "feature": "atr_14",
+      "delta_sharpe": -0.045015751111188385
+    }
+  ],
+  "shap_mean_abs": {
+    "mfi_bear_div_bars_since": 0.002550285304245038,
+    "fear_greed_index_val": 0.0025195949090876207,
+    "bar_color_bars_since": 0.0021400387758287757,
+    "atr_14": 0.001488858776268762,
+    "ret_1": 0.0014709355835477516,
+    "htf_bear_confirm_4h": 0.0013229836462845311,
+    "ret_6": 0.0012777307486641245,
+    "vol_20": 0.0012616791401974098,
+    "ao_oscillator_slope_3": 0.0012262428133971636,
+    "continuation_candles_bars_since": 0.0011807033288910448,
+    "fear_greed_index_slope_3": 0.001179460750764567,
+    "bollinger_band_basis_line_slope_3": 0.0010702993399334655,
+    "background_color_bars_since": 0.001041350231306004,
+    "bollinger_band_lower_line_val": 0.0010297433781485516,
+    "ao_oscillator_val": 0.0010148291677865547,
+    "bollinger_band_upper_line_slope_3": 0.0008943133355325528,
+    "senkou_span_b_52_period_above_span_a_cloud_val": 0.0008815736384713452,
+    "rsi_bear_div_bars_since": 0.0008765497749705219,
+    "bearish_power_candle_bars_since": 0.0008446764548682948,
+    "kinjun_sen_26_period_val": 0.0008002951547611937
+  }
+}

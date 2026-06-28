@@ -1,0 +1,50 @@
+# Signal Gym universe — one Yahoo Finance symbol per line (yfinance format). Lines
+# starting with # are comments. This is the download manifest (collect.py) and the
+# universe of record; train/validation/test splits are derived from it deterministically
+# (seeded, stratified by asset class). Asset classes are assigned in config.py
+# (TICKER_ASSET_CLASS). Data is 1-hour OHLCV from Yahoo (~730 days).
+
+# --- indices / index futures (asset_class 0) ---
+ES=F
+^GSPC
+^NDX
+^DJI
+^RUT
+^TA125.TA
+
+# --- defence / aerospace / industrial equities (asset_class 1) ---
+LMT
+NOC
+RTX
+GD
+LHX
+LDOS
+BA
+PLTR
+
+# --- agriculture / fertiliser / machinery equities (asset_class 1) ---
+NTR
+MOS
+CF
+DE
+ADM
+BG
+
+# --- energy equities (asset_class 1) ---
+CVX
+XOM
+OXY
+
+# --- commodity futures (asset_class 2) ---
+CL=F
+BZ=F
+
+# --- ETFs (asset_class 3) ---
+ITA
+XAR
+PPA
+DFND.L
+ARMY.L
+WEAT
+CORN
+SOYB

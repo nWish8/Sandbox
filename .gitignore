@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environment (project-canonical FinRL/CUDA env — do not commit)
+.venv/
+
+# FinRL lab artifacts (regenerable)
+finrl_lab/data/
+finrl_lab/trained_models/
+finrl_lab/results/
+finrl_lab/*.csv
+finrl_lab/*.png
+finrl_lab/*.npz
+tensorboard_log/
+
+# Gym data/model artifacts (regenerable via collect/build/evolve)
+gym/data/
+gym/models/
+
+# Local data / research / tooling — kept on disk, never committed
+Prophets/
+Sandbox research/
+signal_study/
+tradingview-mcp/
+market_data/
+data_pipeline/
+models/
+
+# OS
+Thumbs.db
+.DS_Store
