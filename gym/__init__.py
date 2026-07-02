@@ -1,8 +1,8 @@
-"""Signal Gym — a local research framework that trains an agent to manage a long-only
-spot portfolio off the Prophets signal suite, and records which signals/conditions
-carry edge.
+"""Signal Gym — a local research framework for training RL agents to allocate a
+long-only, multi-asset spot portfolio from price-only (OHLCV) features, judged
+honestly against an equal-weight benchmark with a significance gate.
 
-See gym/spec.md (rev 3) for the design and gym/tasks.md for the build plan.
+See gym/README.md for the design and gym/RESEARCH_LOG.md for dated findings.
 """
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"

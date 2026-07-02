@@ -112,18 +112,19 @@ distinguishable from luck.
 ## Modules
 
 ```
-config.py         universe, dates, indicators, split configuration
-pipeline.py       data download + feature engineering + PPO train/backtest wrapper
-finrl_patch.py    compatibility shim for the data downloader
-portfolio.py      the multi-asset portfolio environment: softmax-weight allocation,
-                  turnover cost, pluggable reward, causal covariance data-prep, PPO train/rollout
-rewards.py        the per-step training-reward registry
-stats.py          portfolio performance metrics (Sharpe/Sortino/Calmar, active_sharpe, drawdown)
-signif.py         the out-of-sample significance gate (permutation + runs test)
-regime.py         causal bull/bear/choppy labeling + per-regime evaluation
-investigate.py    the reward investigation: train per reward, score on val/test, rank, gate, report
-control_panel.py  PyQt desktop panel to configure, launch, watch, and stop runs
-run.py            command-line entry point
+pipeline.py          data download + feature engineering + PPO train/backtest wrapper
+finrl_patch.py       compatibility shim for the data downloader
+portfolio.py         the multi-asset portfolio environment: softmax-weight allocation,
+                     turnover cost, pluggable reward, causal covariance data-prep, PPO train/rollout
+rewards.py           the per-step training-reward registry
+stats.py             portfolio performance metrics (Sharpe/Sortino/Calmar, active_sharpe, drawdown)
+signif.py            the out-of-sample significance gate (permutation + runs test)
+regime.py            causal bull/bear/choppy labeling + per-regime evaluation
+investigate.py       the reward investigation: train per reward, score on val/test, rank, gate, report
+evo_portfolio.py     GPU-batched population evolution on the multi-stock portfolio
+evo_replay_panel.py  3-pane bar-by-bar replay of a recorded population-evolution run
+control_panel.py     PyQt desktop panel to configure, launch, watch, and stop runs
+run.py               command-line entry point
 ```
 
 ## Outputs
