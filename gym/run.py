@@ -6,6 +6,7 @@ Usage:
   python -m gym.run evolve [--objective timing_sortino] [--pop N] [--gens N] [--monitor]
   python -m gym.run evo-replay [--speed N]         # watch the recorded population race
   python -m gym.run validate [--scope test|validation] [--perms N]   # MCPT + runs test
+  python -m gym.run investigate [--tickers ...] [--timesteps N]      # reward investigation (v2)
 """
 from __future__ import annotations
 
@@ -173,6 +174,38 @@ def cmd_validate(args):
           f"p={runs_res.p_value:.4f}  significant={runs_res.significant}")
 
 
+_DEFAULT_PORTFOLIO = ["AAPL", "MSFT", "JPM", "XOM", "CAT", "PG", "JNJ", "WMT"]
+
+
+def cmd_investigate(args):
+    """v2 reward investigation: train PPO under each candidate reward on FinRL's multi-asset
+    StockPortfolioEnv, score on a held-out val/test split, rank by validation active_sharpe, and
+    run the significance gate on the champion's test edge."""
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))   # gym/ → flat finrl-side imports
+    from pipeline import FinRLConfig
+    from investigate import (append_to_research_log, champion_gate, format_table,
+                             investigate, verdict)
+
+    cfg = FinRLConfig(
+        tickers=args.tickers or _DEFAULT_PORTFOLIO,
+        train_start=args.train_start, train_end=args.train_end,
+        trade_start=args.trade_start, trade_end=args.trade_end,
+        agent="ppo", device=args.device,
+    )
+    rows = investigate(cfg, reward_names=args.rewards, timesteps=args.timesteps, seed=args.seed,
+                       lookback=args.lookback, device=args.device, log=print)
+    print("\n" + format_table(rows))
+    print("\nVerdict: " + verdict(rows))
+    g = champion_gate(rows, n_perms=args.perms)
+    if g is not None:
+        print("Champion " + g.summary())
+    if not args.no_log:
+        append_to_research_log(rows, cfg, timesteps=args.timesteps, seed=args.seed)
+        print(f"\nAppended to {Path(__file__).resolve().parent / 'RESEARCH_LOG.md'}")
+
+
 # ─────────────────────────────────────────── argument parser
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -203,6 +236,22 @@ def _build_parser() -> argparse.ArgumentParser:
     va.add_argument("--scope", choices=["validation", "test"], default="test")
     va.add_argument("--perms", type=int, default=10_000)
 
+    iv = sub.add_parser("investigate", help="v2 multi-asset reward investigation")
+    iv.add_argument("--tickers", nargs="*", default=None, help="Yahoo symbols (default: a "
+                    "small diversified basket)")
+    iv.add_argument("--rewards", nargs="*", default=None,
+                    help="subset of reward names (default: all in rewards.REWARDS)")
+    iv.add_argument("--train-start", default="2014-01-01")
+    iv.add_argument("--train-end", default="2022-01-01")
+    iv.add_argument("--trade-start", default="2022-01-01")
+    iv.add_argument("--trade-end", default="2024-01-01")
+    iv.add_argument("--timesteps", type=int, default=20_000)
+    iv.add_argument("--lookback", type=int, default=60)
+    iv.add_argument("--seed", type=int, default=42)
+    iv.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    iv.add_argument("--perms", type=int, default=10_000)
+    iv.add_argument("--no-log", action="store_true", help="don't append to RESEARCH_LOG.md")
+
     return p
 
 
@@ -217,6 +266,7 @@ def main(argv=None):
         "evolve":     cmd_evolve,
         "evo-replay": cmd_evo_replay,
         "validate":   cmd_validate,
+        "investigate": cmd_investigate,
     }
     dispatch[args.cmd](args)
 

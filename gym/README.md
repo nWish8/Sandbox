@@ -1,107 +1,137 @@
 # Signal Gym
 
-A local research framework for discovering which Prophets indicator signals carry edge
-in price action, using a long-only spot portfolio agent trained with PPO and validated
-with a LightGBM supervised baseline. It also includes an **evolutionary visual training
-mode** (a watchable population of agents) — see [`evo_spec.md`](evo_spec.md).
+A local research framework for training reinforcement-learning agents to allocate a
+**long-only, multi-asset spot portfolio** from **price-only (OHLCV) features**, and for
+answering one question honestly:
 
-## Goals
+> Is there generalizable, feature-driven allocation edge over a naive equal-weight portfolio —
+> and which reward objective actually selects for it?
 
-1. **Train a general agent** that manages a long-only spot portfolio on any single ticker,
-   learning online by playing through a training universe of tickers bar-by-bar.
-2. **Discover signal edge** — which Prophets signals, conditions (regimes/contexts), and
-   interactions (confluence, cross-TF agreement) actually predict price movement.
-3. **Make training watchable** — evolve a *population* of agents through the universe and
-   watch them race, get pruned at a ruin line, and be selected by a chosen objective. The
-   reward selects for genuine *trade timing*, not de-risking ([`evo_spec.md`](evo_spec.md)).
+The reward objective is not assumed. Several candidate rewards are trained head-to-head and
+judged on out-of-sample data with a significance gate, so the framework reports a defensible
+*positive* result or a rigorous *negative* one — never a metric flattering itself.
+
+## How it works
+
+Each run is a pipeline:
+
+1. **Data.** Daily OHLCV for a chosen universe is downloaded and enriched with standard
+   technical indicators. A per-bar covariance matrix is added from a trailing window of past
+   returns (strictly causal — no future bars enter any observation).
+2. **Environment.** An agent observes the current bar (covariance + indicators) and emits a
+   raw score per asset; a softmax turns it into portfolio weights — a long-only point on the
+   simplex that sums to 1. The realized return is the weighted basket return over the *next*
+   bar, so a decision only ever earns the move that follows it. Turnover is charged a
+   transaction cost, so churn is never free.
+3. **Reward.** The per-step training reward is pluggable (see [Rewards](#rewards)). Each
+   candidate is online and causal — it reads only the latest bar and a running estimate of the
+   past, never the whole episode.
+4. **Training.** One PPO policy is trained per candidate reward.
+5. **Evaluation.** The out-of-sample period is split chronologically into a **validation** and
+   a **test** slice. Each agent is scored on both. Candidates are ranked by **validation**
+   `active_sharpe` (the information ratio versus an equal-weight benchmark); the test column is
+   reported but never used for selection.
+6. **Significance gate.** The selected champion's test performance is run through a Monte-Carlo
+   permutation test (sign-flip on the active-return Sharpe) and a Wald–Wolfowitz runs test, so
+   an apparent edge has to clear a noise threshold before it counts.
+7. **Regime breakdown.** Test bars are labeled bull / bear / choppy from a causal trailing
+   trend of the benchmark, and performance is reported per regime — a flat verdict can hide a
+   regime effect, so it is split out.
+
+Every run serializes its full config and seed to a JSON manifest and appends a dated entry to
+the research log.
+
+## Design constraints
+
+- **Long-only spot** — no shorting, leverage, derivatives, or options.
+- **Research only** — backtest/evaluation; no broker execution and no real capital.
+- **Price-only** — features derive from OHLCV; no news, fundamentals, or order-book data.
+- **No lookahead** — at bar `t` only bars ≤ `t` are observable; fills happen on the next bar;
+  the covariance and benchmark labels use trailing windows only.
+- **Reproducible & leakage-free** — identical config + seed reproduce a run; selection touches
+  validation only, and the test slice is scored once.
 
 ## Quick start
 
+The framework runs in the project virtual environment (Python 3.11, with PyTorch, Stable-
+Baselines3, FinRL, and PyQt5).
+
+Run the reward investigation from the command line:
+
 ```bash
-# 1. Collect market data + Prophets signals via TradingView CDP
-python -m gym.run collect
+# default diversified basket, daily data
+python -m gym.run investigate --timesteps 20000
 
-# 2. Build feature matrices and 3-way ticker splits
-python -m gym.run build
-
-# 3. Train (supervised baseline first — fast, interpretable)
-python -m gym.run train --agent sup
-
-# 4. Evaluate on validation set
-python -m gym.run eval --scope validation --agent sup
-
-# 5. Build signal-edge report (D-B)
-python -m gym.run analyze --agent sup
-
-# 6. Statistical validation (MCPT + runs test)
-python -m gym.run validate --scope test --agent sup
-
-# 7. Replay a trained policy on a single ticker
-python -m gym.run replay NYSE:LMT --agent sup
-
-# --- RL (after supervised baseline is validated) ---
-python -m gym.run train --agent ppo --monitor
-python -m gym.run eval  --scope test --agent ppo
-python -m gym.run analyze --agent ppo
-
-# --- Evolutionary visual mode (watchable population) ---
-python -m gym.run evolve --objective timing_sortino --pop 64 --gens 40
-python -m gym.run evo-replay        # world candles + signals / equity race / leaderboard
+# choose your own universe, dates, training budget, and device
+python -m gym.run investigate \
+    --tickers AAPL MSFT JPM XOM CAT PG JNJ WMT \
+    --train-start 2014-01-01 --train-end 2022-01-01 \
+    --trade-start 2022-01-01 --trade-end 2024-01-01 \
+    --timesteps 50000 --lookback 60 --device cpu
 ```
 
-## Architecture
+This prints a ranked comparison table, the verdict, and the significance gate; writes a
+reproducibility manifest to `reports/`; and appends a dated entry to
+[`RESEARCH_LOG.md`](RESEARCH_LOG.md). Pass `--no-log` to skip the log/manifest.
 
-```
-collect.py   → signal_study/results/*.json     scrape OHLCV + all indicator plots
-features.py  → gym/data/*.parquet              per-bar causal feature matrices
-env.py       → SignalGymEnv                    Gymnasium env, one ticker per episode
-agent_sup.py → EdgePolicy (LightGBM)           supervised baseline + SHAP attribution
-agent_rl.py  → RLPolicy (PPO)                  primary learner
-train.py     → training_run()                  episodic loop, checkpoint/eval protocol
-backtest.py  → run_backtest(), fast_vectorized  policy evaluation + metrics
-analysis.py  → build_edge_report()             signal-edge report (D-B)
-valid.py     → mcpt(), runs_test()             MCPT + Wald-Wolfowitz validation
-baselines.py → BuyAndHoldPolicy, RulePolicy    B&H + A3/A5b/PCB benchmarks
-monitor.py   → TrainingMonitor                 live pyqtgraph 4-panel dashboard
-replay.py    → replay()                        finplot bar-stepped chart
-run.py       → CLI                             all commands above
+Or drive it visually from the desktop control panel:
 
-# --- evolutionary visual mode (see evo_spec.md) ---
-stats.py     → compute_stats(), OBJECTIVES     backtesting.py-style metrics + objective registry
-population.py→ run_pass(), select_survivors()  capital-threaded pass, ruin pruning, selection
-evo.py       → EvoPolicy, evolve()             ES/neuroevolution population trainer
-evo_replay.py→ GenerationReplay, replay_evolution  recorded race: world / equity-race / leaderboard
+```bash
+python gym/control_panel.py
 ```
 
-## Key design decisions
+Open the **Reward Investigation (multi-asset)** tab, set the universe and training budget, and
+press **Run**. You get a live log, a bar chart of validation-vs-test `active_sharpe` per
+reward, the champion's equity against the equal-weight benchmark, and the verdict + gate.
 
-- **Long-only spot only** — no shorts, no leverage (hard constraint).
-- **Three disjoint ticker splits** — train / validation / test. Generalisation to
-  *unseen tickers* is the point; no time-based leakage allowed.
-- **No-lookahead invariant** — observation at bar `t` contains only features from bars
-  ≤ `t`; fills at `t+1` open; vol terciles and z-scores fitted on training tickers only.
-- **Differential Sharpe reward** — Moeller differential Sharpe of excess-over-B&H,
-  turnover-penalised. The RL training signal.
-- **Baseline-first build order** — supervised LightGBM runs in seconds, produces the
-  first signal-edge report, and validates the full pipeline before PPO is engaged.
-- **Capture everything** — all Prophets signal plots (event fires and continuous values)
-  are in the feature matrix. Feature selection / regularisation is the model's job.
-- **Reward selects for timing, not de-risking** (evolutionary mode) — ratio objectives are
-  scale-free and a static drawdown penalty just yields a smaller constant hold, so the default
-  objective rewards an agent's active return over its *own average-exposure twin*
-  (`timing_sortino`). A constant-exposure agent scores 0; only feature-driven timing scores.
-  See [`evo_spec.md`](evo_spec.md) for the full rationale and findings.
+## Rewards
 
-## Feature vocabulary
+The candidate training rewards compared by the investigation:
 
-Signal features (per event signal): `{sig}_fired`, `{sig}_bars_since`, `{sig}_within_3`, `{sig}_ever`  
-Continuous signals: `{sig}_val` (z-scored, train-fit), `{sig}_slope_3`  
-Conditions: `bull_active_count`, `bear_active_count`, `continuation_active`,
-`cloud_state ∈ {-1, 0, 1}`, `background_active`, `points_active`, `vol_regime ∈ {0, 1, 2}`  
-Interactions: `htf_bull_confirm_4h`, `htf_bear_confirm_4h`  
-Context: `asset_class ∈ {0..3}` (no raw ticker identity)  
-Price: `ret_1/3/6`, `vol_20`, `range_pos_20`, `drawdown_20`, `atr_14`  
-Target (supervised): `fwd_edge_6 = fwd_ret_6 − baseline_long_6`
+| Name | What it optimizes |
+|------|-------------------|
+| `return` | the raw per-bar net return |
+| `logret` | the per-bar net log return (compounding-consistent) |
+| `diff_sharpe` | an online estimate of the Sharpe ratio's increment (rewards risk-adjusted return, per step) |
+| `active` | the per-bar return in excess of the equal-weight benchmark |
+| `active_dsr` | the online differential Sharpe of the *active* (excess-over-benchmark) series — risk-adjusted edge over an honest benchmark |
+
+New rewards are added to the registry in [`rewards.py`](rewards.py); the investigation picks
+them up automatically.
+
+## How results are judged
+
+The headline metric is **`active_sharpe`**: the annualized information ratio of the portfolio's
+returns *minus the equal-weight benchmark's returns*, bar for bar. Because the benchmark is
+external and computed from the same bars, an agent cannot earn a positive score by simply
+tracking or de-risking toward the benchmark — only genuine relative skill scores. A positive
+absolute Sharpe with a negative `active_sharpe` means the portfolio made money but did not beat
+naive equal weighting. The significance gate then decides whether a positive `active_sharpe` is
+distinguishable from luck.
+
+## Modules
+
+```
+config.py         universe, dates, indicators, split configuration
+pipeline.py       data download + feature engineering + PPO train/backtest wrapper
+finrl_patch.py    compatibility shim for the data downloader
+portfolio.py      the multi-asset portfolio environment: softmax-weight allocation,
+                  turnover cost, pluggable reward, causal covariance data-prep, PPO train/rollout
+rewards.py        the per-step training-reward registry
+stats.py          portfolio performance metrics (Sharpe/Sortino/Calmar, active_sharpe, drawdown)
+signif.py         the out-of-sample significance gate (permutation + runs test)
+regime.py         causal bull/bear/choppy labeling + per-regime evaluation
+investigate.py    the reward investigation: train per reward, score on val/test, rank, gate, report
+control_panel.py  PyQt desktop panel to configure, launch, watch, and stop runs
+run.py            command-line entry point
+```
+
+## Outputs
+
+- [`RESEARCH_LOG.md`](RESEARCH_LOG.md) — a dated, append-only record of every investigation:
+  the ranked table, verdict, significance gate, and per-regime breakdown.
+- `reports/investigation_*.json` — a reproducibility manifest per run (full config, seed,
+  ranking, and gate result).
 
 ## Tests
 
@@ -109,18 +139,6 @@ Target (supervised): `fwd_edge_6 = fwd_ret_6 − baseline_long_6`
 pytest gym/tests -q
 ```
 
-145 tests covering: features causality, no-lookahead invariants, env mechanics, env
-reward sign, supervised agent importances, backtest equity math (vectorised = env),
-MCPT and runs test, full pipeline integration, determinism, and the evolutionary mode
-(stats/objectives incl. timing-vs-twin, capital-threaded passes + ruin pruning + selection,
-the ES loop and EvoPolicy, and the replay data layer + persistence).
-
-## Deliverables
-
-- **D-A** `gym/models/ppo_{run}.zip` — trained PPO policy + checkpoints
-- **D-B** `gym/reports/edge_report.json` — signal-edge report
-  (solo edge, condition/interaction edge, GBT importances/SHAP, RL ablation deltas)
-- **D-C** Gym itself — reusable framework; both PPO and supervised plug in unchanged
-- **D-E** `gym/models/evo_champion.npz` — winning evolved genome + architecture
-- **D-F** `gym/models/evo_generation.{npz,json}` — final-generation race recording (replayed
-  by `evo-replay`)
+Covering environment mechanics and causality, turnover cost, the reward functions, the
+performance metrics and their leakage-free benchmark comparison, the significance gate, the
+holdout split and reporting, and the regime labeling.

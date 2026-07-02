@@ -34,7 +34,7 @@ from pipeline import AGENTS, FinRLConfig, backtest, prepare_data, train  # noqa:
 
 def _our_basket() -> list[str]:
     """Yahoo symbols from the gym project's ticker manifest, if present."""
-    f = HERE.parent / "gym" / "config" / "tickers.txt"
+    f = HERE / "config" / "tickers.txt"
     if not f.exists():
         return []
     out = []
@@ -67,6 +67,9 @@ class Bridge(QtCore.QObject):
     evo_log = QtCore.pyqtSignal(str)
     evo_gen = QtCore.pyqtSignal(int, float, float, float)   # gen, best_train, mean_train, val
     evo_done = QtCore.pyqtSignal(str)
+    # reward investigation tab (multi-asset portfolio)
+    invest_log = QtCore.pyqtSignal(str)
+    invest_done = QtCore.pyqtSignal(object)                 # {"rows", "gate", "verdict"} or None
 
 
 class ControlPanel(QtWidgets.QMainWindow):
@@ -82,8 +85,11 @@ class ControlPanel(QtWidgets.QMainWindow):
         self.bridge.evo_log.connect(lambda s: self.evo_logbox.appendPlainText(s))
         self.bridge.evo_gen.connect(self._on_evo_gen)
         self.bridge.evo_done.connect(self._on_evo_done)
+        self.bridge.invest_log.connect(lambda s: self.invest_logbox.appendPlainText(s))
+        self.bridge.invest_done.connect(self._on_invest_done)
         self._stop = threading.Event()
         self._evo_stop = threading.Event()
+        self._invest_stop = threading.Event()
         self._reward_x: list[int] = []
         self._reward_y: list[float] = []
         self._evo_best: list[float] = []
@@ -98,6 +104,7 @@ class ControlPanel(QtWidgets.QMainWindow):
         fl.addLayout(self._build_form(), 0)
         fl.addLayout(self._build_view(), 1)
         tabs.addTab(finrl_tab, "FinRL DRL (single agent)")
+        tabs.addTab(self._build_investigate_tab(), "Reward Investigation (multi-asset)")
         tabs.addTab(self._build_evo_tab(), "Evolution (GPU population)")
 
     # ---- left: config form
@@ -336,6 +343,125 @@ class ControlPanel(QtWidgets.QMainWindow):
         self.btn_evo.setEnabled(True); self.btn_evo_stop.setEnabled(False)
         self.btn_replay.setEnabled(True)
         self.evo_logbox.appendPlainText(f"[evo] {status} — click 'Open 3-pane replay' to watch")
+
+
+    # ════════════════════════════ Reward Investigation tab (multi-asset) ════════════════════════════
+    def _build_investigate_tab(self):
+        w = QtWidgets.QWidget(); h = QtWidgets.QHBoxLayout(w)
+        form = QtWidgets.QFormLayout()
+
+        self.iv_tickers = QtWidgets.QPlainTextEdit(); self.iv_tickers.setFixedHeight(70)
+        self.iv_tickers.setPlainText("AAPL, MSFT, JPM, XOM, CAT, PG, JNJ, WMT")
+        form.addRow("Tickers", self.iv_tickers)
+        self.iv_train_start = QtWidgets.QLineEdit("2014-01-01")
+        self.iv_train_end = QtWidgets.QLineEdit("2022-01-01")
+        self.iv_trade_start = QtWidgets.QLineEdit("2022-01-01")
+        self.iv_trade_end = QtWidgets.QLineEdit("2024-01-01")
+        for lbl, wdg in (("Train start", self.iv_train_start), ("Train end", self.iv_train_end),
+                         ("Trade start", self.iv_trade_start), ("Trade end", self.iv_trade_end)):
+            form.addRow(lbl, wdg)
+        self.iv_timesteps = QtWidgets.QSpinBox(); self.iv_timesteps.setRange(500, 5_000_000)
+        self.iv_timesteps.setSingleStep(5000); self.iv_timesteps.setValue(20000)
+        form.addRow("Timesteps / reward", self.iv_timesteps)
+        self.iv_lookback = QtWidgets.QSpinBox(); self.iv_lookback.setRange(5, 252)
+        self.iv_lookback.setValue(60); form.addRow("Cov lookback", self.iv_lookback)
+        self.iv_device = QtWidgets.QComboBox(); self.iv_device.addItems(["cpu", "cuda"])
+        form.addRow("Device", self.iv_device)
+        self.iv_seed = QtWidgets.QSpinBox(); self.iv_seed.setRange(0, 99999); self.iv_seed.setValue(42)
+        form.addRow("Seed", self.iv_seed)
+
+        self.btn_iv = QtWidgets.QPushButton("Run reward investigation")
+        self.btn_iv.clicked.connect(self._start_investigate)
+        self.btn_iv_stop = QtWidgets.QPushButton("Stop"); self.btn_iv_stop.setEnabled(False)
+        self.btn_iv_stop.clicked.connect(lambda: self._invest_stop.set())
+        form.addRow(self.btn_iv); form.addRow(self.btn_iv_stop)
+        left = QtWidgets.QVBoxLayout(); left.addLayout(form); left.addStretch(1)
+        h.addLayout(left, 0)
+
+        right = QtWidgets.QVBoxLayout()
+        self.iv_bar = pg.PlotWidget(title="active_sharpe by reward — val (blue) vs test (orange)")
+        self.iv_bar.addLine(y=0, pen=pg.mkPen("gray", style=QtCore.Qt.DashLine))
+        right.addWidget(self.iv_bar, 2)
+        self.iv_equity = pg.PlotWidget(title="Champion (val-selected) vs equal-weight — test equity")
+        self.iv_eq_champ = self.iv_equity.plot([], [], pen=pg.mkPen("#2962ff", width=2), name="champion")
+        self.iv_eq_bh = self.iv_equity.plot([], [], pen=pg.mkPen("orange", width=1.7,
+                                            style=QtCore.Qt.DashLine), name="equal-weight")
+        right.addWidget(self.iv_equity, 2)
+        self.iv_verdict = QtWidgets.QLabel("Configure a universe and run the investigation.")
+        self.iv_verdict.setWordWrap(True); right.addWidget(self.iv_verdict)
+        self.invest_logbox = QtWidgets.QPlainTextEdit(); self.invest_logbox.setReadOnly(True)
+        self.invest_logbox.setMaximumBlockCount(2000); right.addWidget(self.invest_logbox, 1)
+        h.addLayout(right, 1)
+        return w
+
+    def _start_investigate(self):
+        syms = [s.strip() for s in self.iv_tickers.toPlainText().replace("\n", ",").split(",")
+                if s.strip()]
+        if not syms:
+            self.invest_logbox.appendPlainText("[error] no tickers"); return
+        device = self.iv_device.currentText()
+        if device == "cuda":
+            try:
+                import torch
+                if not torch.cuda.is_available():
+                    self.invest_logbox.appendPlainText("[warn] CUDA unavailable — using CPU")
+                    device = "cpu"
+            except Exception:  # noqa: BLE001
+                device = "cpu"
+        cfg = FinRLConfig(
+            tickers=syms, train_start=self.iv_train_start.text(), train_end=self.iv_train_end.text(),
+            trade_start=self.iv_trade_start.text(), trade_end=self.iv_trade_end.text(),
+            agent="ppo", device=device,
+        )
+        self._invest_stop.clear()
+        self.btn_iv.setEnabled(False); self.btn_iv_stop.setEnabled(True)
+        self.iv_bar.clear(); self.iv_eq_champ.setData([], []); self.iv_eq_bh.setData([], [])
+        threading.Thread(target=self._run_investigate, args=(
+            cfg, int(self.iv_timesteps.value()), int(self.iv_seed.value()),
+            int(self.iv_lookback.value()), device), daemon=True).start()
+
+    def _run_investigate(self, cfg, timesteps, seed, lookback, device):
+        emit = self.bridge.invest_log.emit
+        try:
+            from investigate import champion_gate, investigate, verdict
+            rows = investigate(cfg, timesteps=timesteps, seed=seed, lookback=lookback,
+                               device=device, stop=self._invest_stop.is_set, log=emit)
+            gate = champion_gate(rows, n_perms=2000) if rows else None
+            self.bridge.invest_done.emit({"rows": rows, "gate": gate,
+                                          "verdict": verdict(rows) if rows else "no results"})
+        except Exception as e:  # noqa: BLE001
+            import traceback
+            emit("[error] " + str(e)); emit(traceback.format_exc())
+            self.bridge.invest_done.emit(None)
+
+    def _on_invest_done(self, payload):
+        import numpy as np
+        self.btn_iv.setEnabled(True); self.btn_iv_stop.setEnabled(False)
+        if not payload or not payload.get("rows"):
+            self.iv_verdict.setText("Investigation failed or was stopped — see log.")
+            return
+        rows = payload["rows"]
+        names = [r["reward"] for r in rows]
+        val = [r["val"].get("active_sharpe", float("nan")) for r in rows]
+        test = [r["test"].get("active_sharpe", float("nan")) for r in rows]
+        val = [0.0 if v is None or not np.isfinite(v) else v for v in val]
+        test = [0.0 if v is None or not np.isfinite(v) else v for v in test]
+        x = np.arange(len(names))
+        self.iv_bar.clear()
+        self.iv_bar.addLine(y=0, pen=pg.mkPen("gray", style=QtCore.Qt.DashLine))
+        self.iv_bar.addItem(pg.BarGraphItem(x=x - 0.2, height=val, width=0.38, brush="#2962ff"))
+        self.iv_bar.addItem(pg.BarGraphItem(x=x + 0.2, height=test, width=0.38, brush="orange"))
+        ax = self.iv_bar.getAxis("bottom")
+        ax.setTicks([list(zip(x.tolist(), names))])
+        # champion test equity vs equal-weight benchmark
+        champ = rows[0]
+        eq = np.cumprod(1.0 + np.asarray(champ["test_ret"]))
+        bh = np.cumprod(1.0 + np.asarray(champ["test_bench"]))
+        xs = list(range(len(eq)))
+        self.iv_eq_champ.setData(xs, eq.tolist()); self.iv_eq_bh.setData(xs, bh.tolist())
+        g = payload.get("gate")
+        gate_txt = ("  |  " + g.summary()) if g is not None else ""
+        self.iv_verdict.setText(payload["verdict"] + gate_txt)
 
 
 def main():

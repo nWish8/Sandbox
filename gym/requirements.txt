@@ -1,13 +1,13 @@
-# Signal Gym dependencies (Python 3.13). See gym/spec.md §6.
-# numpy/pandas/scipy/finplot/pyqtgraph/PyQt5/torch are already in the project .venv.
+# Signal Gym v2 dependencies. Target interpreter: Python 3.11 (FinRL supports <=3.12).
+# numpy/pandas/scipy/torch/PyQt5 already live in the project .venv; see RESEARCH_LOG.md
+# for the (hard-won) environment notes. FinRL 0.3.7 is installed separately (its dependency
+# chain does not pip-resolve cleanly) — it is the multi-asset substrate, not pinned here.
 pandas>=2.0
 numpy>=1.24
 pyarrow>=14
 scipy>=1.11
 gymnasium>=0.29
-lightgbm>=4.0
 stable-baselines3>=2.3
-shap>=0.45
 finplot>=1.9
 pyqtgraph>=0.13
 PyQt5>=5.15

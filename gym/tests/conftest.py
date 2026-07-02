@@ -10,9 +10,16 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]   # .../Sandbox
+ROOT = Path(__file__).resolve().parents[2]   # .../Sandbox  (enables `import gym.<module>`)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# The FinRL-side modules moved in from finrl_lab (pipeline, finrl_patch, portfolio, …) use
+# flat imports (`from pipeline import …`), matching how they run as scripts. Put gym/ on the
+# path so those resolve under pytest too.
+GYM = Path(__file__).resolve().parents[1]    # .../Sandbox/gym
+if str(GYM) not in sys.path:
+    sys.path.insert(0, str(GYM))
 
 
 @pytest.fixture

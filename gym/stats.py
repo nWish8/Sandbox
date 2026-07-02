@@ -271,3 +271,51 @@ def objective_value(stats: dict, name: str = DEFAULT_OBJECTIVE,
     if v is None or not np.isfinite(v):
         return float("-inf")
     return float(v)
+
+
+# ─────────────────────────────────────────── multi-asset portfolio metrics (v2)
+
+#: portfolio objective name -> key in `portfolio_stats` (higher = better). Used to rank the
+#: reward-investigation candidates. `active_sharpe` is the headline edge metric: a leakage-free
+#: information ratio versus the equal-weight benchmark (the corrected replacement for the retired
+#: single-ticker `timing_sortino`).
+PORTFOLIO_OBJECTIVES = ("active_sharpe", "sharpe", "sortino", "calmar", "total_return")
+
+
+def portfolio_stats(returns, bench_returns=None, periods_per_year: int = TRADING_DAYS_PER_YEAR
+                    ) -> dict:
+    """Performance stats for a multi-asset portfolio return series — corrected & leakage-free.
+
+    `returns` is the per-bar net (after-cost) portfolio return; `bench_returns` the equal-weight
+    benchmark return for the *same* bars (both produced causally by `PortfolioEnv`). Annualisation
+    uses `periods_per_year` matching the actual bar clock (252 for the daily MVP), fixing the old
+    √252-on-1h-bars bug. The benchmark is *external* (equal-weight), not a full-window self-twin,
+    so `active_sharpe` measures real edge without look-ahead.
+    """
+    r = np.asarray(returns, dtype=np.float64)
+    r = r[np.isfinite(r)]
+    out: dict[str, float] = {}
+    n = len(r)
+    if n == 0:
+        return out
+    ppy = periods_per_year
+    equity = np.cumprod(1.0 + r)
+    total = float(equity[-1] - 1.0)
+    out["n_bars"] = n
+    out["total_return"] = total
+    out["ann_return"] = float((1.0 + total) ** (ppy / n) - 1.0) if (1.0 + total) > 0 else float("nan")
+    out["ann_vol"] = float(np.std(r, ddof=1) * np.sqrt(ppy)) if n >= 2 else float("nan")
+    out["sharpe"] = _sharpe(r, ppy)
+    out["sortino"] = _sortino(r, ppy)
+    dd = equity / np.maximum.accumulate(equity) - 1.0
+    out["max_drawdown"] = float(np.min(dd))
+    out["calmar"] = (out["ann_return"] / abs(out["max_drawdown"])
+                     if out["max_drawdown"] < 0 and np.isfinite(out["ann_return"]) else float("nan"))
+    if bench_returns is not None:
+        b = np.asarray(bench_returns, dtype=np.float64)[:n]
+        out["bench_total_return"] = float(np.prod(1.0 + b) - 1.0)
+        active = r - b
+        out["active_return"] = float(np.sum(active))
+        out["active_sharpe"] = _sharpe(active, ppy)        # information ratio vs equal-weight
+        out["excess_total"] = total - out["bench_total_return"]
+    return out
