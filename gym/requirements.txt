@@ -12,3 +12,8 @@ finplot>=1.9
 pyqtgraph>=0.13
 PyQt5>=5.15
 pytest>=8.0
+# Vision M1+: FinRL-X (successor framework) — used behind adapters for the data layer
+# (SQLite cache) and the bt-powered backtester only; its Alpaca execution layer is
+# intentionally unused (research only, no real capital). Verified 2026-07-02 to resolve
+# with zero conflicts against the pinned torch/SB3/FinRL-0.3.7 stack.
+finrl-trading>=2.0
