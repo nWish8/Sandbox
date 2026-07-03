@@ -30,3 +30,6 @@ models/
 # OS
 Thumbs.db
 .DS_Store
+
+# Recorded training runs (replayable artifacts, regenerable)
+gym/runs/

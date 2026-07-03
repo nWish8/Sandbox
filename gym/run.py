@@ -79,6 +79,15 @@ def cmd_project(args):
     print(format_projection(table, honesty, args.horizon))
 
 
+def cmd_replay(args):
+    """Open the run-replay panel (checkpoint scrubber + bar-by-bar playback)."""
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from run_replay_panel import main as replay_main
+    replay_main(args.run)
+
+
 def cmd_screen(args):
     """Technical screen: one snapshot row per ticker from cached daily OHLCV."""
     from pathlib import Path
@@ -128,6 +137,9 @@ def _build_parser() -> argparse.ArgumentParser:
     pj.add_argument("--horizon", type=int, default=20, help="forward horizon (trading days)")
     pj.add_argument("--end", default=None, help="as-of date YYYY-MM-DD (default: today)")
 
+    rp = sub.add_parser("replay", help="bar-by-bar playback of a recorded training run")
+    rp.add_argument("--run", default=None, help="run id under gym/runs (default: latest)")
+
     return p
 
 
@@ -140,6 +152,7 @@ def main(argv=None):
         "investigate": cmd_investigate,
         "screen": cmd_screen,
         "project": cmd_project,
+        "replay": cmd_replay,
     }
     dispatch[args.cmd](args)
 
