@@ -55,8 +55,8 @@ def cmd_investigate(args):
         trade_start=args.trade_start, trade_end=args.trade_end,
         agent="ppo", device=args.device,
     )
-    rows = investigate(cfg, reward_names=args.rewards, timesteps=args.timesteps, seed=args.seed,
-                       lookback=args.lookback, device=args.device, log=print)
+    rows = investigate(cfg, reward_names=args.rewards, algo=args.algo, timesteps=args.timesteps,
+                       seed=args.seed, lookback=args.lookback, device=args.device, log=print)
     print("\n" + format_table(rows))
     print("\nVerdict: " + verdict(rows))
     g = champion_gate(rows, n_perms=args.perms)
@@ -65,6 +65,18 @@ def cmd_investigate(args):
     if not args.no_log:
         append_to_research_log(rows, cfg, timesteps=args.timesteps, seed=args.seed)
         print(f"\nAppended to {Path(__file__).resolve().parent / 'RESEARCH_LOG.md'}")
+
+
+def cmd_project(args):
+    """ML return projections with confidence bands + OOS coverage honesty check."""
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from projections import format_projection, project
+
+    table, honesty = project(args.tickers or _DEFAULT_PORTFOLIO, horizon=args.horizon,
+                             end=args.end, log=print)
+    print(format_projection(table, honesty, args.horizon))
 
 
 def cmd_screen(args):
@@ -97,6 +109,7 @@ def _build_parser() -> argparse.ArgumentParser:
     iv.add_argument("--train-end", default="2022-01-01")
     iv.add_argument("--trade-start", default="2022-01-01")
     iv.add_argument("--trade-end", default="2024-01-01")
+    iv.add_argument("--algo", choices=["ppo", "sac", "a2c"], default="ppo")
     iv.add_argument("--timesteps", type=int, default=20_000)
     iv.add_argument("--lookback", type=int, default=60)
     iv.add_argument("--seed", type=int, default=42)
@@ -110,6 +123,11 @@ def _build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--end", default=None, help="as-of date YYYY-MM-DD (default: today)")
     sc.add_argument("--json", default=None, help="also write the table to this JSON path")
 
+    pj = sub.add_parser("project", help="ML return projections with confidence bands")
+    pj.add_argument("--tickers", nargs="*", default=None)
+    pj.add_argument("--horizon", type=int, default=20, help="forward horizon (trading days)")
+    pj.add_argument("--end", default=None, help="as-of date YYYY-MM-DD (default: today)")
+
     return p
 
 
@@ -121,6 +139,7 @@ def main(argv=None):
     dispatch = {
         "investigate": cmd_investigate,
         "screen": cmd_screen,
+        "project": cmd_project,
     }
     dispatch[args.cmd](args)
 

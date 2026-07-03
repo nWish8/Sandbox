@@ -72,9 +72,9 @@ def _rank_key(stats: dict, metric: str = "active_sharpe") -> float:
 # ─────────────────────────────────────────── the investigation
 
 def investigate(cfg: FinRLConfig, reward_names: list[str] | None = None, *,
-                timesteps: int = 20_000, seed: int = 42, lookback: int = 60,
+                algo: str = "ppo", timesteps: int = 20_000, seed: int = 42, lookback: int = 60,
                 device: str = "cpu", val_frac: float = 0.5, stop=None, log=print) -> list[dict]:
-    """Train one PPO agent per candidate reward; score each on held-out val + test.
+    """Train one agent (PPO/SAC/A2C) per candidate reward; score each on held-out val + test.
 
     Returns rows ``[{reward, val: stats, test: stats}]`` sorted by validation ``active_sharpe``
     (best first). Selection uses validation only; test is reported, never selected on.
@@ -82,15 +82,15 @@ def investigate(cfg: FinRLConfig, reward_names: list[str] | None = None, *,
     reward_names = reward_names or list(REWARDS)
     train_df, trade_df = prepare_portfolio_data(cfg, lookback=lookback, log=log)
     val_df, test_df = split_val_test(trade_df, val_frac)
-    log(f"[investigate] train_days={train_df.index.nunique()} "
+    log(f"[investigate] algo={algo} train_days={train_df.index.nunique()} "
         f"val_days={val_df.index.nunique()} test_days={test_df.index.nunique()}")
 
     rows: list[dict] = []
     for name in reward_names:
         if stop is not None and stop():
             log("[investigate] stopped"); break
-        model = train_portfolio(train_df, cfg, reward=name, timesteps=timesteps, seed=seed,
-                                lookback=lookback, device=device, stop=stop, log=log)
+        model = train_portfolio(train_df, cfg, reward=name, algo=algo, timesteps=timesteps,
+                                seed=seed, lookback=lookback, device=device, stop=stop, log=log)
         val_s, _, _ = _eval(model, val_df, cfg, name, lookback)
         test_s, test_ret, test_bench = _eval(model, test_df, cfg, name, lookback)
         log(f"[investigate] {name:>12}  val active_sharpe={_rank_key(val_s):+.3f}  "

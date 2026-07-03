@@ -100,6 +100,7 @@ class PortfolioEnv(StockPortfolioEnv):
         )
         self.cost_pct = cost_pct
         self.reward_fn = reward_fn
+        self.tics = sorted(df["tic"].unique().tolist())
         self._init_portfolio_memory()
 
     # ---- memory
@@ -157,14 +158,19 @@ class PortfolioEnv(StockPortfolioEnv):
 
     # ---- evaluation export
     def portfolio_history(self) -> pd.DataFrame:
-        """Per-bar record for stats/backtest: date, ret (net), bench_ret, value, turnover."""
-        return pd.DataFrame({
+        """Per-bar record for stats/backtest/replay: date, ret (net), bench_ret, value,
+        turnover, plus one ``w_<tic>`` column per asset (the weights held that bar)."""
+        hist = pd.DataFrame({
             "date": self.date_memory,
             "ret": self.returns_memory,
             "bench_ret": self.bench_returns_memory,
             "value": self.asset_memory,
             "turnover": self.turnover_memory,
         })
+        weights = np.vstack(self.weights_memory)
+        for i, tic in enumerate(self.tics):
+            hist[f"w_{tic}"] = weights[:, i]
+        return hist
 
 
 # ─────────────────────────────────────────── env factory
@@ -187,18 +193,34 @@ def make_portfolio_env(df: pd.DataFrame, cfg: FinRLConfig, *, reward=DEFAULT_REW
 
 # ─────────────────────────────────────────── train + deterministic rollout
 
+PORTFOLIO_ALGOS = ("ppo", "sac", "a2c")
+
+
 def train_portfolio(train_df: pd.DataFrame, cfg: FinRLConfig, *, reward=DEFAULT_REWARD,
-                    timesteps: int = 20_000, seed: int = 42, lookback: int = 60,
-                    device: str = "cpu", progress_cb=None, stop=None, log=print):
-    """Train an SB3 PPO policy on the portfolio env under a given reward. Returns the model."""
-    from stable_baselines3 import PPO
+                    algo: str = "ppo", timesteps: int = 20_000, seed: int = 42,
+                    lookback: int = 60, device: str = "cpu", progress_cb=None, stop=None,
+                    recorder=None, log=print):
+    """Train an SB3 policy (PPO / SAC / A2C) on the portfolio env under a given reward.
+
+    ``recorder`` (see ``runlog.RunRecorder``) snapshots deterministic rollouts at
+    checkpoints during training so the run can be replayed bar-by-bar later.
+    """
+    import stable_baselines3 as sb3
     from stable_baselines3.common.vec_env import DummyVecEnv
 
+    if algo not in PORTFOLIO_ALGOS:
+        raise ValueError(f"algo must be one of {PORTFOLIO_ALGOS}, got {algo!r}")
+    cls = getattr(sb3, algo.upper())
     venv = DummyVecEnv([lambda: make_portfolio_env(train_df, cfg, reward=reward, lookback=lookback)])
-    model = PPO("MlpPolicy", venv, seed=seed, device=device, verbose=0)
-    log(f"[portfolio] train reward={reward!s} steps={timesteps} device={device} seed={seed}")
-    model.learn(total_timesteps=timesteps,
-                callback=_make_callback(timesteps, progress_cb, stop))
+    model = cls("MlpPolicy", venv, seed=seed, device=device, verbose=0)
+    log(f"[portfolio] train algo={algo} reward={reward!s} steps={timesteps} "
+        f"device={device} seed={seed}")
+    callbacks = [_make_callback(timesteps, progress_cb, stop)]
+    if recorder is not None:
+        callbacks.append(recorder.sb3_callback())
+    model.learn(total_timesteps=timesteps, callback=callbacks)
+    if recorder is not None:
+        recorder.finalize(model)
     return model
 
 
