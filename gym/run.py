@@ -1,13 +1,17 @@
-"""run.py — CLI entry point for Signal Gym (v2 — multi-asset reward investigation).
+"""run.py — CLI entry point for Signal Gym / Vision.
 
 Usage:
   python -m gym.run investigate [--tickers SYM ...] [--timesteps N] [--lookback N]
                                 [--device cpu|cuda] [--no-log]
+  python -m gym.run screen      [--tickers SYM ...] [--end YYYY-MM-DD]
 
-Trains one PPO policy per candidate reward on the FinRL multi-asset portfolio env,
-scores each on a chronological validation/test split, ranks by validation
-active_sharpe (selection never touches test), runs the significance gate on the
-champion's test edge, and appends the dated result to RESEARCH_LOG.md.
+`investigate` trains one PPO policy per candidate reward on the FinRL multi-asset
+portfolio env, scores each on a chronological validation/test split, ranks by
+validation active_sharpe (selection never touches test), runs the significance gate
+on the champion's test edge, and appends the dated result to RESEARCH_LOG.md.
+
+`screen` prints the technical snapshot table (RSI/MACD/Bollinger/ATR/volume/trend)
+for a basket, using the local OHLCV cache (fetches what's missing).
 """
 from __future__ import annotations
 
@@ -63,6 +67,20 @@ def cmd_investigate(args):
         print(f"\nAppended to {Path(__file__).resolve().parent / 'RESEARCH_LOG.md'}")
 
 
+def cmd_screen(args):
+    """Technical screen: one snapshot row per ticker from cached daily OHLCV."""
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))   # gym/ → flat finrl-side imports
+    from screener import format_screen, screen
+
+    table = screen(args.tickers or _DEFAULT_PORTFOLIO, end=args.end, log=print)
+    print(format_screen(table))
+    if args.json:
+        table.to_json(args.json, orient="records", indent=2)
+        print(f"\nWritten to {args.json}")
+
+
 # ─────────────────────────────────────────── argument parser
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -86,6 +104,12 @@ def _build_parser() -> argparse.ArgumentParser:
     iv.add_argument("--perms", type=int, default=10_000)
     iv.add_argument("--no-log", action="store_true", help="don't append to RESEARCH_LOG.md")
 
+    sc = sub.add_parser("screen", help="technical snapshot table for a basket")
+    sc.add_argument("--tickers", nargs="*", default=None, help="Yahoo symbols (default: a "
+                    "small diversified basket)")
+    sc.add_argument("--end", default=None, help="as-of date YYYY-MM-DD (default: today)")
+    sc.add_argument("--json", default=None, help="also write the table to this JSON path")
+
     return p
 
 
@@ -96,6 +120,7 @@ def main(argv=None):
 
     dispatch = {
         "investigate": cmd_investigate,
+        "screen": cmd_screen,
     }
     dispatch[args.cmd](args)
 

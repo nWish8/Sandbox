@@ -74,6 +74,13 @@ This prints a ranked comparison table, the verdict, and the significance gate; w
 reproducibility manifest to `reports/`; and appends a dated entry to
 [`RESEARCH_LOG.md`](RESEARCH_LOG.md). Pass `--no-log` to skip the log/manifest.
 
+Screen a basket's current technical state (uses the local OHLCV cache, fetching what's
+missing):
+
+```bash
+python -m gym.run screen --tickers AAPL MSFT JPM XOM
+```
+
 Or drive it visually from the desktop control panel:
 
 ```bash
@@ -112,8 +119,9 @@ distinguishable from luck.
 ## Modules
 
 ```
-pipeline.py          data download + feature engineering + PPO train/backtest wrapper
-finrl_patch.py       compatibility shim for the data downloader
+marketdata.py        provider-swappable daily OHLCV source (yfinance default) + parquet cache
+screener.py          per-ticker technical snapshot: RSI, MACD, Bollinger, ATR, volume, trend
+pipeline.py          data prep (via marketdata) + feature engineering + PPO train/backtest wrapper
 portfolio.py         the multi-asset portfolio environment: softmax-weight allocation,
                      turnover cost, pluggable reward, causal covariance data-prep, PPO train/rollout
 rewards.py           the per-step training-reward registry
@@ -142,4 +150,6 @@ pytest gym/tests -q
 
 Covering environment mechanics and causality, turnover cost, the reward functions, the
 performance metrics and their leakage-free benchmark comparison, the significance gate, the
-holdout split and reporting, and the regime labeling.
+holdout split and reporting, the regime labeling, the market-data cache (contract, cache
+hits, range extension, offline fallback), and the screener's indicators (values on known
+series plus a future-perturbation causality test).

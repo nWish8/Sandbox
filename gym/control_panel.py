@@ -27,7 +27,6 @@ from pyqtgraph.Qt import QtCore, QtWidgets
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-import finrl_patch  # noqa: F401,E402
 from finrl.config import INDICATORS  # noqa: E402
 from pipeline import AGENTS, FinRLConfig, backtest, prepare_data, train  # noqa: E402
 

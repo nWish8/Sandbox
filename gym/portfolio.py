@@ -32,7 +32,6 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-import finrl_patch  # noqa: F401  — fixes FinRL's yfinance downloader on import
 from finrl.meta.env_portfolio_allocation.env_portfolio import StockPortfolioEnv
 
 from pipeline import FinRLConfig, prepare_data, _make_callback

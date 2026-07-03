@@ -24,13 +24,12 @@ from pathlib import Path
 
 import pandas as pd
 
-import finrl_patch  # noqa: F401  — fixes FinRL's yfinance downloader on import
-
 from finrl.config import INDICATORS
 from finrl.meta.preprocessor.preprocessors import FeatureEngineer, data_split
-from finrl.meta.preprocessor.yahoodownloader import YahooDownloader
 from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
 from finrl.agents.stablebaselines3.models import DRLAgent
+
+from marketdata import MarketData
 
 HERE = Path(__file__).resolve().parent
 DATA_DIR = HERE / "data"
@@ -89,14 +88,20 @@ def prepare_data(cfg: FinRLConfig, log=print, force: bool = False
         log(f"[data] cache hit {key}")
         return pd.read_parquet(ftrain), pd.read_parquet(ftrade)
 
-    log(f"[data] downloading {len(cfg.tickers)} tickers {cfg.train_start}..{cfg.trade_end}")
-    raw = YahooDownloader(start_date=cfg.train_start, end_date=cfg.trade_end,
-                          ticker_list=list(cfg.tickers)).fetch_data()
+    log(f"[data] fetching {len(cfg.tickers)} tickers {cfg.train_start}..{cfg.trade_end}")
+    md = MarketData()
+    raw = md.get_finrl(list(cfg.tickers), cfg.train_start, cfg.trade_end, log=log)
+    # use_vix=False: FinRL's add_vix calls its broken YahooDownloader; we merge the same
+    # 'vix' column from our own cached source below instead.
     fe = FeatureEngineer(use_technical_indicator=True,
                          tech_indicator_list=list(cfg.indicators),
-                         use_vix=cfg.use_vix, use_turbulence=cfg.use_turbulence,
+                         use_vix=False, use_turbulence=cfg.use_turbulence,
                          user_defined_feature=False)
     processed = fe.preprocess_data(raw)
+    if cfg.use_vix:
+        vix = (md.get_finrl(["^VIX"], cfg.train_start, cfg.trade_end)[["date", "close"]]
+               .rename(columns={"close": "vix"}))
+        processed = processed.merge(vix, on="date")   # inner join, matching FinRL's add_vix
     # dense (date x tic) grid, fill gaps
     import itertools
     tics = processed["tic"].unique().tolist()
