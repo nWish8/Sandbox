@@ -79,6 +79,23 @@ def cmd_project(args):
     print(format_projection(table, honesty, args.horizon))
 
 
+def cmd_promote(args):
+    """Formal backtest of a recorded run's model on the held-out split, with frictions."""
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from runlog import list_runs
+    from strategy_eval import CostModel, format_report, promote
+
+    run_id = args.run or (list_runs()[0] if list_runs() else None)
+    if run_id is None:
+        sys.exit("No recorded runs under gym/runs/. Train with a RunRecorder first.")
+    cost = CostModel(cost_pct=args.cost_pct, slippage_bps=args.slippage_bps,
+                     delay_bars=args.delay)
+    report = promote(run_id, cost=cost, split=args.split, log=print)
+    print("\n" + format_report(report, title=f"{run_id} / {args.split}"))
+
+
 def cmd_replay(args):
     """Open the run-replay panel (checkpoint scrubber + bar-by-bar playback)."""
     from pathlib import Path
@@ -140,6 +157,13 @@ def _build_parser() -> argparse.ArgumentParser:
     rp = sub.add_parser("replay", help="bar-by-bar playback of a recorded training run")
     rp.add_argument("--run", default=None, help="run id under gym/runs (default: latest)")
 
+    pm = sub.add_parser("promote", help="formal backtest of a recorded run (with frictions)")
+    pm.add_argument("--run", default=None, help="run id under gym/runs (default: latest)")
+    pm.add_argument("--split", choices=["train", "val", "test"], default="test")
+    pm.add_argument("--cost-pct", type=float, default=0.001)
+    pm.add_argument("--slippage-bps", type=float, default=5.0)
+    pm.add_argument("--delay", type=int, default=0, help="execution latency in bars")
+
     return p
 
 
@@ -153,6 +177,7 @@ def main(argv=None):
         "screen": cmd_screen,
         "project": cmd_project,
         "replay": cmd_replay,
+        "promote": cmd_promote,
     }
     dispatch[args.cmd](args)
 
