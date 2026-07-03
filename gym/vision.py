@@ -134,10 +134,16 @@ class MonitorTab(QtWidgets.QWidget):
         top.addStretch(1)
         self.status = QtWidgets.QLabel("")
         top.addWidget(self.status)
+        self.auto = QtWidgets.QCheckBox("auto 5m")
+        self.auto.toggled.connect(self._toggle_auto)
+        top.addWidget(self.auto)
         btn = QtWidgets.QPushButton("Refresh")
-        btn.clicked.connect(self.refresh)
+        btn.clicked.connect(lambda: self.refresh(force=False))
         top.addWidget(btn)
         lay.addLayout(top)
+        self.timer = QtCore.QTimer(self)
+        self.timer.setInterval(300_000)                      # 5 minutes
+        self.timer.timeout.connect(lambda: self.refresh(force=True))
 
         split = QtWidgets.QHBoxLayout()
         lay.addLayout(split, stretch=1)
@@ -158,7 +164,12 @@ class MonitorTab(QtWidgets.QWidget):
         self.heat_plot.addItem(self.img)
         right.addWidget(self.heat, stretch=1)
 
-    def refresh(self):
+    def _toggle_auto(self, on: bool):
+        self.timer.start() if on else self.timer.stop()
+        if on:
+            self.refresh(force=True)
+
+    def refresh(self, force: bool = False):
         positions = load_portfolio_state()
         if not positions:
             self.status.setText(f"no positions — edit {STATE_FILE.name}")
@@ -169,7 +180,8 @@ class MonitorTab(QtWidgets.QWidget):
         start = (end - pd.Timedelta(days=30)).strftime("%Y-%m-%d")
         for tic in tics:
             try:
-                c = self.md.get_ohlcv(tic, start, end.strftime("%Y-%m-%d"))["close"]
+                c = self.md.get_ohlcv(tic, start, end.strftime("%Y-%m-%d"),
+                                      force=force)["close"]
                 last[tic] = float(c.iloc[-1])
                 if len(c) > 1:
                     prev[tic] = float(c.iloc[-2])
@@ -206,11 +218,34 @@ class MonitorTab(QtWidgets.QWidget):
             ticks = [(i + 0.5, tic) for i, tic in enumerate(corr.columns)]
             self.heat_plot.getAxis("bottom").setTicks([ticks])
             self.heat_plot.getAxis("left").setTicks([ticks])
-        self.status.setText(f"{len(t['rows'])} positions · value {t['total_value']:,.0f}")
+        stamp = pd.Timestamp.now().strftime("%H:%M:%S")
+        self.status.setText(f"{len(t['rows'])} positions · value {t['total_value']:,.0f}"
+                            f" · refreshed {stamp}{' (forced)' if force else ''}")
+
+
+class _NumItem(QtWidgets.QTableWidgetItem):
+    """Table cell that sorts numerically when it holds a number (text sorts are wrong
+    for '9.5' vs '10.2'); non-numeric cells fall back to text ordering."""
+
+    def __init__(self, value, text: str | None = None):
+        super().__init__(text if text is not None else str(value))
+        self._v = float(value) if isinstance(value, (int, float, np.floating)) \
+            and np.isfinite(value) else None
+
+    def __lt__(self, other):
+        if isinstance(other, _NumItem) and self._v is not None and other._v is not None:
+            return self._v < other._v
+        return super().__lt__(other)
 
 
 class ScreenerTab(QtWidgets.QWidget):
-    """Technical screen + quantile projections, rendered as terminal tables."""
+    """Technical screen in a sortable, colour-coded table + projections in the log pane.
+    Click any column header to sort (numeric-aware)."""
+
+    _COLS = [("tic", None), ("close", "{:.2f}"), ("trend", None), ("rsi14", "{:.1f}"),
+             ("rsi_zone", None), ("macd_side", None), ("macd_cross_age", "{:.0f}"),
+             ("bb_pct_b", "{:.2f}"), ("bb_state", None), ("atr_pct", "{:.2f}"),
+             ("vol_z", "{:.1f}"), ("ret_20d", "{:+.1f}"), ("off_52w_high", "{:+.1f}")]
 
     def __init__(self, md: MarketData | None = None, parent=None):
         super().__init__(parent)
@@ -230,6 +265,11 @@ class ScreenerTab(QtWidgets.QWidget):
         b2.clicked.connect(self.run_project)
         row.addWidget(b2)
         lay.addLayout(row)
+
+        self.table = QtWidgets.QTableWidget()
+        self.table.setEditTriggers(QtWidgets.QTableWidget.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        lay.addWidget(self.table, stretch=3)
         self.out = QtWidgets.QPlainTextEdit()
         self.out.setReadOnly(True)
         lay.addWidget(self.out, stretch=1)
@@ -237,12 +277,49 @@ class ScreenerTab(QtWidgets.QWidget):
     def _tics(self):
         return [t for t in self.edit.text().replace(",", " ").split() if t]
 
+    @staticmethod
+    def _cell_color(col: str, value, text: str) -> str | None:
+        if col == "trend":
+            return {"up": GREEN, "down": RED, "mixed": AMBER}.get(text)
+        if col == "rsi_zone":
+            return {"oversold": GREEN, "overbought": RED}.get(text)
+        if col == "macd_side":
+            return {"bull": GREEN, "bear": RED}.get(text)
+        if col in ("ret_20d", "off_52w_high") and isinstance(value, (int, float)):
+            return GREEN if value > 0 else RED if value < 0 else None
+        if col == "vol_z" and isinstance(value, (int, float)) and abs(value) > 2:
+            return AMBER
+        return None
+
+    def _fill_table(self, df) -> None:
+        self.table.setSortingEnabled(False)
+        cols = [c for c, _ in self._COLS]
+        self.table.setColumnCount(len(cols))
+        self.table.setHorizontalHeaderLabels(cols)
+        self.table.setRowCount(len(df))
+        for i, (_, r) in enumerate(df.iterrows()):
+            for j, (col, fmt) in enumerate(self._COLS):
+                v = r[col]
+                if v is None or (isinstance(v, float) and not np.isfinite(v)):
+                    item = _NumItem(float("nan"), "—")
+                else:
+                    item = _NumItem(v, fmt.format(v) if fmt else str(v))
+                color = self._cell_color(col, v, str(v))
+                if color:
+                    item.setForeground(QtGui.QColor(color))
+                self.table.setItem(i, j, item)
+        self.table.setSortingEnabled(True)
+        self.table.sortItems(cols.index("ret_20d"), QtCore.Qt.DescendingOrder)
+        self.table.resizeColumnsToContents()
+
     def run_screen(self):
-        from screener import format_screen, screen
+        from screener import screen
         self.out.appendPlainText("\n$ screen " + " ".join(self._tics()))
         try:
             table = screen(self._tics(), md=self.md, log=lambda m: self.out.appendPlainText(m))
-            self.out.appendPlainText(format_screen(table))
+            self._fill_table(table)
+            self.out.appendPlainText(f"{len(table)} tickers screened "
+                                     f"(as of {table['date'].iloc[0]}) — click headers to sort")
         except Exception as e:  # noqa: BLE001
             self.out.appendPlainText(f"error: {e}")
 
@@ -310,6 +387,9 @@ class VisionWindow(QtWidgets.QMainWindow):
             err = QtWidgets.QLabel(f"RL Lab unavailable: {e}")
             tabs.addTab(err, "RL Lab")
         tabs.addTab(ReplayTab(), "Replay")
+        bar = self.statusBar()
+        bar.setStyleSheet(f"color: {GREY};")
+        bar.showMessage("research only · no order routing · data: yfinance via local cache")
         self.resize(1280, 860)
 
 

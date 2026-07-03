@@ -57,3 +57,25 @@ def test_skill_curve_is_final_equity_per_checkpoint(rec):
     f = playback_frame(rec, 0, 0)
     np.testing.assert_allclose(f["skill"], rec.equity[:, -1])
     assert f["final_equity"] == pytest.approx(rec.equity[0, -1])
+
+
+def test_weight_stack_bounds():
+    from run_replay_panel import weight_stack
+    w = np.array([[0.2, 0.3, 0.5], [0.1, 0.6, 0.3]])
+    s = weight_stack(w)
+    assert s.shape == (2, 4)
+    np.testing.assert_allclose(s[:, 0], 0.0)                 # floor
+    np.testing.assert_allclose(s[:, -1], 1.0)                # simplex top
+    assert (np.diff(s, axis=1) >= 0).all()                   # bands never invert
+    np.testing.assert_allclose(np.diff(s, axis=1), w)        # band heights = weights
+
+
+def test_regime_spans_contiguous_runs():
+    from run_replay_panel import regime_spans
+    labels = ["choppy", "choppy", "bull", "bull", "bull", "bear"]
+    spans = regime_spans(labels)
+    assert spans == [(0, 2, "choppy"), (2, 5, "bull"), (5, 6, "bear")]
+    assert regime_spans([]) == []
+    assert regime_spans(["bull"]) == [(0, 1, "bull")]
+    # spans must tile the whole series exactly
+    assert sum(e - s for s, e, _ in spans) == len(labels)
