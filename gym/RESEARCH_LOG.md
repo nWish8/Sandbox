@@ -101,3 +101,35 @@ Ranked by **validation** `active_sharpe` (selection never touches test):
 ```
 
 Run manifest (reproducibility): `investigation_20260703_153609.json`
+
+## 2026-07-04 — reward investigation
+
+Universe: 8 tickers · train 2014-01-01..2022-01-01 · trade 2022-01-01..2024-01-01 · PPO 20000 steps · seed 42.
+
+Ranked by **validation** `active_sharpe` (selection never touches test):
+
+```
+      reward | val_active_sh test_active_sh | val_   sharpe test_   sharpe | val_  sortino test_  sortino | val_   calmar test_   calmar | val_total_ret test_total_ret
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  active_dsr |        -0.178         -0.219 |        +0.260         +1.460 |        +0.369         +2.215 |        +0.193         +2.103 |        +0.029         +0.144
+      return |        -0.439         -0.571 |        +0.254         +1.355 |        +0.366         +2.060 |        +0.205         +2.061 |        +0.027         +0.139
+ diff_sharpe |        -0.510         -0.669 |        +0.226         +1.312 |        +0.324         +1.986 |        +0.163         +1.951 |        +0.022         +0.134
+      logret |        -1.074         -3.101 |        +0.174         +0.951 |        +0.250         +1.416 |        +0.093         +1.150 |        +0.013         +0.090
+      active |        -1.237         -0.738 |        +0.143         +1.401 |        +0.205         +2.118 |        +0.051         +1.951 |        +0.008         +0.137
+```
+
+**Verdict:** val-selected reward 'active_dsr' has test active_sharpe -0.219 -> no out-of-sample edge over equal-weight. Honest negative.
+
+**Significance gate** (champion test active returns): gate: Sharpe=-0.219  MCPT p=0.5824  runs p=0.9659 -> not significant
+
+**Champion test performance by market regime** (causal bull/bear/choppy labelling):
+
+```
+  regime |        n_bars | active_sharpe |        sharpe |  total_return
+------------------------------------------------------------------------
+    bull |           127 |        -1.438 |         2.047 |         0.109
+    bear |            61 |         0.547 |         1.539 |         0.046
+  choppy |            31 |         2.679 |        -1.039 |        -0.014
+```
+
+Run manifest (reproducibility): `investigation_20260704_002118.json`
