@@ -1,8 +1,16 @@
-# Signal Gym
+# Signal Gym / Vision
 
-A local research framework for training reinforcement-learning agents to allocate a
-**long-only, multi-asset spot portfolio** from **price-only (OHLCV) features**, and for
-answering one question honestly:
+**Vision** is a locally-run, dark-themed trading intelligence terminal
+(`python -m gym.run vision`) with four modules in one window: a **read-only portfolio
+monitor** (positions from `portfolio_state.json`, P&L, correlation heatmap), a
+**screener** with technical snapshots and quantile return projections, the **RL lab**
+(FinRL control panel), and a **run replay** with a checkpoint scrubber for watching
+recorded training runs bar-by-bar. Screenshots in [`docs/screenshots/`](docs/screenshots/).
+Vision never routes orders — everything here is research-only.
+
+At its core sits **Signal Gym**, a research framework for training reinforcement-learning
+agents to allocate a **long-only, multi-asset spot portfolio** from **price-only (OHLCV)
+features**, and for answering one question honestly:
 
 > Is there generalizable, feature-driven allocation edge over a naive equal-weight portfolio —
 > and which reward objective actually selects for it?
@@ -75,10 +83,15 @@ reproducibility manifest to `reports/`; and appends a dated entry to
 [`RESEARCH_LOG.md`](RESEARCH_LOG.md). Pass `--no-log` to skip the log/manifest.
 
 Screen a basket's current technical state (uses the local OHLCV cache, fetching what's
-missing):
+missing), project h-day return bands, replay a recorded run, or promote one through the
+formal backtester:
 
 ```bash
-python -m gym.run screen --tickers AAPL MSFT JPM XOM
+python -m gym.run screen  --tickers AAPL MSFT JPM XOM
+python -m gym.run project --tickers AAPL MSFT JPM XOM --horizon 20
+python -m gym.run replay                       # scrub the latest recorded training run
+python -m gym.run promote --slippage-bps 5     # formal backtest with frictions
+python -m gym.run vision                       # the full terminal
 ```
 
 Or drive it visually from the desktop control panel:
@@ -129,9 +142,14 @@ stats.py             portfolio performance metrics (Sharpe/Sortino/Calmar, activ
 signif.py            the out-of-sample significance gate (permutation + runs test)
 regime.py            causal bull/bear/choppy labeling + per-regime evaluation
 investigate.py       the reward investigation: train per reward, score on val/test, rank, gate, report
+projections.py       GBT quantile return bands (q10/q50/q90) + walk-forward coverage honesty check
+runlog.py            checkpointed run recording (equity/weights/returns per generation) for replay
+run_replay_panel.py  bar-by-bar playback of a recorded run with a checkpoint scrubber
+strategy_eval.py     formal backtester (slippage/latency cost model) + promotion flow + bt cross-check
 evo_portfolio.py     GPU-batched population evolution on the multi-stock portfolio
 evo_replay_panel.py  3-pane bar-by-bar replay of a recorded population-evolution run
 control_panel.py     PyQt desktop panel to configure, launch, watch, and stop runs
+vision.py            the Vision terminal shell: monitor / screener / RL lab / replay, dark theme
 run.py               command-line entry point
 ```
 

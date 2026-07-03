@@ -316,6 +316,7 @@ class VisionWindow(QtWidgets.QMainWindow):
 def main():
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
     app.setStyleSheet(THEME_QSS)
+    app.setFont(QtGui.QFont("Consolas", 9))   # pyqtgraph axis text inherits this too
     w = VisionWindow()
     w.show()
     app.exec_() if hasattr(app, "exec_") else app.exec()

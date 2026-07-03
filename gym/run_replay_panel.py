@@ -198,6 +198,8 @@ def main(run_id: str | None = None):
         run_id = runs[0]
     rec = RunRecord.load(run_id)
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    from pyqtgraph.Qt import QtGui
+    app.setFont(QtGui.QFont("Consolas", 9))
     w = RunReplayWidget(rec)
     w.setWindowTitle(f"Vision — run replay [{run_id}]")
     w.resize(1100, 800)
