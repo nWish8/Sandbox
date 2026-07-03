@@ -79,6 +79,15 @@ def cmd_project(args):
     print(format_projection(table, honesty, args.horizon))
 
 
+def cmd_vision(args):
+    """Launch the Vision terminal (all modules in one dark window)."""
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from vision import main as vision_main
+    vision_main()
+
+
 def cmd_promote(args):
     """Formal backtest of a recorded run's model on the held-out split, with frictions."""
     from pathlib import Path
@@ -164,6 +173,8 @@ def _build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--slippage-bps", type=float, default=5.0)
     pm.add_argument("--delay", type=int, default=0, help="execution latency in bars")
 
+    sub.add_parser("vision", help="launch the Vision terminal")
+
     return p
 
 
@@ -178,6 +189,7 @@ def main(argv=None):
         "project": cmd_project,
         "replay": cmd_replay,
         "promote": cmd_promote,
+        "vision": cmd_vision,
     }
     dispatch[args.cmd](args)
 

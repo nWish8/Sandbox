@@ -1,0 +1,10 @@
+{
+  "_comment": "Read-only monitor input — edit by hand. Vision never routes orders.",
+  "positions": [
+    {"tic": "AAPL", "shares": 10, "cost_basis": 250.0},
+    {"tic": "MSFT", "shares": 6, "cost_basis": 380.0},
+    {"tic": "JPM", "shares": 8, "cost_basis": 290.0},
+    {"tic": "XOM", "shares": 20, "cost_basis": 115.0},
+    {"tic": "PG", "shares": 10, "cost_basis": 160.0}
+  ]
+}
