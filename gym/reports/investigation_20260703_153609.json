@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-07-03T15:36:09",
+  "config": {
+    "tickers": [
+      "AAPL",
+      "MSFT",
+      "JPM",
+      "XOM",
+      "CAT",
+      "PG",
+      "JNJ",
+      "WMT"
+    ],
+    "train_start": "2014-01-01",
+    "train_end": "2022-01-01",
+    "trade_start": "2022-01-01",
+    "trade_end": "2024-01-01",
+    "indicators": [
+      "macd",
+      "boll_ub",
+      "boll_lb",
+      "rsi_30",
+      "cci_30",
+      "dx_30",
+      "close_30_sma",
+      "close_60_sma"
+    ],
+    "use_vix": true,
+    "use_turbulence": true,
+    "agent": "ppo",
+    "timesteps": 20000,
+    "model_kwargs": {},
+    "device": "cpu",
+    "n_envs": 1,
+    "hmax": 100,
+    "initial_amount": 1000000.0,
+    "cost_pct": 0.001,
+    "reward_scaling": 0.0001,
+    "turbulence_threshold": 70.0,
+    "seed": 42
+  },
+  "timesteps": 20000,
+  "seed": 42,
+  "ranking": [
+    {
+      "reward": "active",
+      "val_active_sharpe": 0.3765325512826976,
+      "test_active_sharpe": -2.126179782185232
+    },
+    {
+      "reward": "active_dsr",
+      "val_active_sharpe": -0.5631815406985154,
+      "test_active_sharpe": -0.745856812236025
+    },
+    {
+      "reward": "return",
+      "val_active_sharpe": -1.3857560120372356,
+      "test_active_sharpe": -1.9372663584686163
+    },
+    {
+      "reward": "logret",
+      "val_active_sharpe": -1.933583654136261,
+      "test_active_sharpe": 0.16930783011969
+    },
+    {
+      "reward": "diff_sharpe",
+      "val_active_sharpe": -2.5239297478876797,
+      "test_active_sharpe": -1.666213915969156
+    }
+  ],
+  "champion": "active",
+  "gate": {
+    "observed_sharpe": -2.126179782185232,
+    "mcpt_p": 0.976002399760024,
+    "runs_p": 0.26140153133170196,
+    "edge_significant": false
+  }
+}

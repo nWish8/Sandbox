@@ -47,6 +47,28 @@ def playback_frame(rec: RunRecord, ci: int, t: int) -> dict:
     }
 
 
+def weight_stack(weights: np.ndarray) -> np.ndarray:
+    """(T, N) weights → (T, N+1) stacked-area bounds: column k is the cumulative weight of
+    the first k assets, so asset k's band lives between columns k and k+1."""
+    T, N = weights.shape
+    out = np.zeros((T, N + 1))
+    out[:, 1:] = np.cumsum(weights, axis=1)
+    return out
+
+
+def regime_spans(labels) -> list[tuple[int, int, str]]:
+    """Contiguous [start, end) runs of equal labels, for background shading."""
+    spans: list[tuple[int, int, str]] = []
+    if len(labels) == 0:
+        return spans
+    start = 0
+    for i in range(1, len(labels) + 1):
+        if i == len(labels) or labels[i] != labels[start]:
+            spans.append((start, i, str(labels[start])))
+            start = i
+    return spans
+
+
 # ─────────────────────────────────────────── Qt panel
 
 os.environ.setdefault("PYQTGRAPH_QT_LIB", "PyQt5")
@@ -97,18 +119,41 @@ class RunReplayWidget(QtWidgets.QWidget):
         pw.ci.layout.setRowStretchFactor(1, 2)
         pw.ci.layout.setRowStretchFactor(2, 1)
 
+        # regime shading behind the equity curves (causal labels from the benchmark)
+        self.regime_labels = None
+        if rec.n_bars >= 70:
+            from regime import label_regimes
+            self.regime_labels = label_regimes(rec.bench_ret)
+            shade = {"bull": (0, 210, 106, 20), "bear": (248, 81, 73, 22),
+                     "choppy": (120, 130, 140, 10)}
+            for s, e, lab in regime_spans(self.regime_labels):
+                reg = pg.LinearRegionItem(values=(s, e), movable=False,
+                                          brush=pg.mkBrush(*shade[lab]),
+                                          pen=pg.mkPen((0, 0, 0, 0)))
+                reg.setZValue(-10)
+                self.p_eq.addItem(reg)
+
         # static content: ghosts + benchmark + skill curve
+        eq_legend = self.p_eq.addLegend(offset=(4, 4))
+        eq_legend.setLabelTextColor(FG)
         for i in range(rec.n_checkpoints):
             self.p_eq.plot(rec.equity[i], pen=pg.mkPen(GREY, width=1))
-        self.p_eq.plot(rec.bench_equity, pen=pg.mkPen(AMBER, width=1, style=_DASH))
-        self.cur_eq = self.p_eq.plot(pen=pg.mkPen(GREEN, width=2))
-        self.w_curves = [self.p_w.plot(pen=pg.mkPen(ASSET_COLORS[i % len(ASSET_COLORS)],
-                                                    width=1))
-                         for i in range(len(rec.tics))]
-        legend = self.p_w.addLegend(offset=(4, 4))
-        legend.setLabelTextColor(FG)
-        for c, tic in zip(self.w_curves, rec.tics):
-            legend.addItem(c, tic)
+        self.p_eq.plot(rec.bench_equity, pen=pg.mkPen(AMBER, width=1, style=_DASH),
+                       name="equal-weight")
+        self.cur_eq = self.p_eq.plot(pen=pg.mkPen(GREEN, width=2), name="agent")
+
+        # stacked-area weights: N+1 boundary curves with fills between neighbours
+        n_assets = len(rec.tics)
+        self.w_bounds = [self.p_w.plot(pen=pg.mkPen((0, 0, 0, 0)))]      # floor at 0
+        w_legend = self.p_w.addLegend(offset=(4, 4))
+        w_legend.setLabelTextColor(FG)
+        for i, tic in enumerate(rec.tics):
+            color = ASSET_COLORS[i % len(ASSET_COLORS)]
+            self.w_bounds.append(self.p_w.plot(pen=pg.mkPen(color, width=1), name=tic))
+            fill_color = pg.mkColor(color)
+            fill_color.setAlpha(90)
+            self.p_w.addItem(pg.FillBetweenItem(self.w_bounds[i], self.w_bounds[i + 1],
+                                                brush=pg.mkBrush(fill_color)))
         self.p_skill.plot(rec.steps, rec.equity[:, -1], pen=pg.mkPen(FG, width=1),
                           symbol="o", symbolSize=5, symbolBrush=GREY)
         self.skill_marker = self.p_skill.plot([], [], pen=None, symbol="o",
@@ -179,15 +224,18 @@ class RunReplayWidget(QtWidgets.QWidget):
         f = playback_frame(self.rec, self.ci, self.t)
         x = np.arange(f["t"] + 1)
         self.cur_eq.setData(x, f["equity"])
-        for i, c in enumerate(self.w_curves):
-            c.setData(x, f["weights"][:, i])
+        stack = weight_stack(f["weights"])
+        for k, bound in enumerate(self.w_bounds):
+            bound.setData(x, stack[:, k])
         self.skill_marker.setData([self.rec.steps[f["ci"]]], [f["final_equity"]])
         m = self.rec.manifest
+        regime = (f"   regime {self.regime_labels[f['t']]}"
+                  if self.regime_labels is not None else "")
         self.info.setText(
             f"run {m['run_id']}   algo={m['algo']} reward={m['reward']}   "
             f"checkpoint {f['ci'] + 1}/{self.rec.n_checkpoints} @ {f['step']} steps   "
             f"bar {f['t'] + 1}/{self.rec.n_bars} ({f['date']})   "
-            f"equity {f['equity'][-1]:.4f}  final {f['final_equity']:.4f}")
+            f"equity {f['equity'][-1]:.4f}  final {f['final_equity']:.4f}{regime}")
 
 
 def main(run_id: str | None = None):
