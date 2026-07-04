@@ -15,22 +15,31 @@ code with tests the same day.*
 | **mementum/backtrader** | Execution realism: decisions after the close fill at the **next open**, so overnight gaps are earned by the *old* position. Close-to-close accounting silently awards gaps to the new weights. | `strategy_eval.replay_weights_ohlc` (gap earned by old weights, intraday by new, compounded); `promote --fills open`. Gapless-market equivalence to close-fill is tested to 1e-10. |
 | **kernc/backtesting.py** | Trade-quality stats beyond Sharpe: profit factor, concentration, extremes. (Our `stats.py` was already modelled on this library.) | `evaluate()` report adds `profit_factor`, `hhi_mean` (concentration), `best_bar`/`worst_bar`; rendered in `format_report`. |
 
-## Deferred (worth it, not now)
+## Round 2 adoptions (2026-07-04, second pass on the deferred set)
 
-- **microsoft/qlib** — the *rolling retrain* workflow (train → roll window forward → retrain
-  → stitched OOS record) is the right upgrade path for promotion ("walk-forward
-  promotion" on the roadmap). Adopting qlib itself is not: heavy infrastructure, its own
-  data format, overlaps everything we already have. Take the workflow shape, not the
-  dependency.
+| Source | Insight | Where it landed |
+|---|---|---|
+| **microsoft/qlib** | The *Rolling Retraining* workflow: one train/test split is a single draw; retrain on an anchored expanding window per segment, roll the model over its own segment only, stitch the segments into one continuous OOS record, and look at fold dispersion. | `walkforward.py` (`make_folds` + `walkforward_run` + fold-dispersion report), CLI `gym.run walkforward`, gated by the same block-robust gate, logged to RESEARCH_LOG. The dependency itself stays out (heavy infra, own data format). |
+| **microsoft/qlib / ML4T** (evaluation practice) | Report the **rank IC** (Spearman of forecast vs realised) — a band-coverage number can look fine while the forecast has zero ordering power. | `projections.walkforward_coverage` now reports OOS `rank_ic`, rendered with a blunt strength label ("no real ranking power" below 0.03). |
+| **goldmansachs/gs-quant** (measure style) | Drawdown *persistence* matters separately from depth: longest underwater spell and share of time underwater. | `strategy_eval.evaluate` → `max_dd_duration`, `pct_time_underwater`, in `format_report`. |
+| **cantaro86/Financial-Models-Numerical-Methods** | Returns are not Gaussian; report the tail, not just σ: VaR/CVaR (95), skew, excess kurtosis. | `strategy_eval.evaluate` → `var_95`, `cvar_95`, `skew`, `excess_kurtosis`, hand-computed tests. |
+| **s0ap/gs-quantitative-strategies-research-notes** | The canonical momentum construction is **12-1**: skip the most recent month to sidestep short-term reversal. | `momentum_topk(skip=...)` + `momentum_12_1` in `RULES` (auto-appears in promotion baselines; rules whose warm-up exceeds the window are skipped with a note). Test proves the skip window dodges a crafted late crash. |
+
+## Still deferred
+
 - **Yvictor/TradingGym** — the original inspiration for the env pattern; already absorbed
   in rev-1..4. Nothing left to take that `PortfolioEnv` doesn't do.
 - **wilsonfreitas/awesome-quant** — directory, not a library. Flagged for later:
-  `vectorbt` (bulk parameter sweeps) when the strategy lab needs mass search.
-- **goldmansachs/gs-quant** — the timeseries measure library is nice but mostly duplicates
-  `stats.py`; the interesting parts (risk, pricing) need a GS backend. Revisit only if a
-  measure we lack comes up.
-- **stefan-jansen/ml4t** (rest of it) — meta-labeling and sample-weighting are candidates
-  for the projections module *after* it demonstrates any OOS value worth refining.
+  `vectorbt` (bulk parameter sweeps) when the strategy lab needs mass search;
+  `exchange_calendars` (already installed via FinRL) if trading-day-aware cache coverage
+  ever matters.
+- **goldmansachs/gs-quant** (the library itself) — the interesting parts (risk, pricing)
+  need a GS backend; the measures we wanted are now implemented locally.
+- **stefan-jansen/ml4t** (rest of it) — meta-labeling and sample-uniqueness weighting are
+  candidates for the projections module *after* it demonstrates OOS ranking power worth
+  refining (the new rank IC line is the tripwire: no IC, no meta-model).
+- **qlib Alpha158 factor zoo** — a curated causal-factor library; worth mining for env/
+  screener features when the regime-conditional investigation motivates a feature push.
 
 ## Rejected (honestly out of scope)
 

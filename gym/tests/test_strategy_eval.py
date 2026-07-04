@@ -123,6 +123,19 @@ def test_open_fill_old_weights_earn_the_gap():
     assert close_fill["ret"].iloc[1] == pytest.approx(0.10)   # close fill credits it all
 
 
+def test_risk_and_tail_extras_hand_computed():
+    """Underwater spell length, VaR/CVaR on a crafted path with known drawdown."""
+    rets = np.array([[0.0], [0.10], [-0.05], [0.01], [0.20]])       # single asset
+    weights = np.ones((5, 1))
+    rep = evaluate(weights, rets, CostModel(cost_pct=0.0, slippage_bps=0.0))
+    # equity [1, 1.1, 1.045, 1.0555, 1.2666]: bars 2 and 3 sit under the bar-1 peak
+    assert rep["max_dd_duration"] == 2
+    assert rep["pct_time_underwater"] == pytest.approx(2 / 5)
+    assert rep["var_95"] <= -0.04                       # 5th pct of the 4 live bars
+    assert rep["cvar_95"] == pytest.approx(-0.05)       # mean of the tail = the one loss
+    assert np.isfinite(rep["skew"])
+
+
 def test_benchmark_identical_portfolio_scores_zero_active():
     """Constant equal weights ARE the benchmark; float noise must not become a fake
     (anti-)edge in the report."""

@@ -101,6 +101,7 @@ python -m gym.run screen  --tickers AAPL MSFT JPM XOM
 python -m gym.run project --tickers AAPL MSFT JPM XOM --horizon 20
 python -m gym.run replay                       # scrub the latest recorded training run
 python -m gym.run promote --slippage-bps 5     # formal backtest with frictions
+python -m gym.run walkforward --folds 4        # rolling retrain -> stitched OOS + gate
 python -m gym.run vision                       # the full terminal
 ```
 
@@ -184,8 +185,10 @@ run_replay_panel.py  bar-by-bar playback of a recorded run: checkpoint scrubber,
                      stacked-area weights, causal regime shading, play/pause + speed
 strategy_eval.py     formal backtester (slippage/latency cost model, close or next-open
                      fills) + promotion flow with rule-baseline comparison + bt cross-check
-rule_policies.py     classic long-only baselines (momentum rotation, inverse-vol) +
-                     market-permutation significance test for rules
+rule_policies.py     classic long-only baselines (momentum rotation incl. 12-1, inverse-vol)
+                     + market-permutation significance test for rules
+walkforward.py       rolling retrain -> stitched OOS record + fold dispersion (the
+                     qlib Rolling-Retraining workflow shape)
 evo_portfolio.py     GPU-batched population evolution on the multi-stock portfolio
 evo_replay_panel.py  3-pane bar-by-bar replay of a recorded population-evolution run
 control_panel.py     PyQt desktop panel to configure, launch, watch, and stop runs

@@ -152,6 +152,20 @@ def evaluate(weights: np.ndarray, asset_rets: np.ndarray, cost: CostModel | None
         # float rounding noise is meaningless and must not masquerade as (anti-)edge
     wins, losses = float(r[r > 0].sum()), float(-r[r < 0].sum())
     w_arr = np.asarray(weights, dtype=np.float64)
+
+    # drawdown persistence (gs-quant-style risk measures): longest underwater spell
+    under = drawdown < -1e-12
+    max_dd_duration = 0
+    if under.any():
+        changes = np.flatnonzero(np.diff(under.astype(np.int8)) != 0) + 1
+        bounds = np.concatenate(([0], changes, [len(under)]))
+        run_lens, run_starts = np.diff(bounds), bounds[:-1]
+        max_dd_duration = int(run_lens[under[run_starts]].max())
+
+    # tail shape (cantaro86's non-normality emphasis): losses are not symmetric-Gaussian
+    from scipy import stats as sps
+    var_95 = float(np.percentile(r, 5)) if len(r) else float("nan")
+    tail = r[r <= var_95] if len(r) else np.array([])
     report = {
         "cost_model": asdict(cost),
         "fills": fills,
@@ -162,6 +176,12 @@ def evaluate(weights: np.ndarray, asset_rets: np.ndarray, cost: CostModel | None
         "hhi_mean": float((w_arr ** 2).sum(axis=1).mean()),   # concentration (1/N = spread)
         "best_bar": float(r.max()) if len(r) else float("nan"),
         "worst_bar": float(r.min()) if len(r) else float("nan"),
+        "max_dd_duration": max_dd_duration,
+        "pct_time_underwater": float(under.mean()),
+        "var_95": var_95,
+        "cvar_95": float(tail.mean()) if len(tail) else float("nan"),
+        "skew": float(sps.skew(r)) if len(r) > 2 else float("nan"),
+        "excess_kurtosis": float(sps.kurtosis(r)) if len(r) > 3 else float("nan"),
         "avg_turnover": float(res["turnover"].to_numpy()[1:].mean()),
         "total_friction_paid": float((cost.friction * res["turnover"]).sum()),
         "equity": equity.tolist(),
@@ -190,6 +210,12 @@ def format_report(report: dict, title: str = "promotion") -> str:
         f"  avg turnover/bar {report['avg_turnover']:.4f}"
         f"   concentration (HHI) {report.get('hhi_mean', float('nan')):.3f}"
         f"   total friction paid {report['total_friction_paid']:.4f}",
+        f"  longest underwater spell {report.get('max_dd_duration', 0)} bars"
+        f" ({report.get('pct_time_underwater', float('nan')):.0%} of time)"
+        f"   VaR95 {report.get('var_95', float('nan')):+.4f}"
+        f"   CVaR95 {report.get('cvar_95', float('nan')):+.4f}"
+        f"   skew {report.get('skew', float('nan')):+.2f}"
+        f"   ex-kurt {report.get('excess_kurtosis', float('nan')):+.2f}",
     ]
     if "baselines" in report:
         lines.append("  vs rule baselines (same costs, close fills):")
@@ -264,9 +290,17 @@ def promote(run_id: str, cost: CostModel | None = None, split: str = "test",
         comp = {"agent": _brief(report),
                 "equal_weight": _brief(evaluate(np.tile(np.full(N, 1.0 / N), (T, 1)),
                                                 asset_rets, cost))}
+        skipped = []
         for name, fn in RULES.items():
-            comp[name] = _brief(evaluate(fn(closes), asset_rets, cost))
+            w_b = fn(closes)
+            if np.allclose(w_b, 1.0 / N):             # never left warm-up in this window
+                skipped.append(name)
+                continue
+            comp[name] = _brief(evaluate(w_b, asset_rets, cost))
         report["baselines"] = comp
+        if skipped:
+            report["baselines_skipped"] = skipped
+            log(f"[promote] baselines skipped (warm-up exceeds window): {', '.join(skipped)}")
 
     out_dir = HERE / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)

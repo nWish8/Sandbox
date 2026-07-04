@@ -25,20 +25,24 @@ import numpy as np
 # ─────────────────────────────────────────── rules (closes (T,N) → weights (T,N))
 
 def momentum_topk(closes: np.ndarray, k: int = 3, lookback: int = 90,
-                  rebalance: int = 21) -> np.ndarray:
+                  rebalance: int = 21, skip: int = 0) -> np.ndarray:
     """Cross-sectional momentum rotation: every ``rebalance`` bars, hold the ``k`` assets
-    with the highest trailing ``lookback``-bar return, equal-weighted. Equal-weight during
-    warm-up."""
+    with the highest trailing ``lookback``-bar return, equal-weighted. ``skip`` excludes
+    the most recent bars from the signal — the classic 12-1 construction (per the GS
+    strategy notes / academic momentum literature) skips the last month to sidestep
+    short-term reversal. Equal-weight during warm-up."""
     T, N = closes.shape
     k = min(k, N)
+    warmup = lookback + skip
     eq = np.full(N, 1.0 / N)
     w = np.tile(eq, (T, 1))
     current = eq
     for t in range(T):
-        if t <= lookback:
+        if t <= warmup:
             current = eq
-        elif (t - lookback - 1) % rebalance == 0:
-            mom = closes[t - 1] / closes[t - 1 - lookback] - 1.0     # data ≤ t−1 only
+        elif (t - warmup - 1) % rebalance == 0:
+            ref = t - 1 - skip                                       # data ≤ t−1 only
+            mom = closes[ref] / closes[ref - lookback] - 1.0
             top = np.argsort(mom)[-k:]
             current = np.zeros(N)
             current[top] = 1.0 / k
@@ -68,6 +72,7 @@ def inverse_vol(closes: np.ndarray, window: int = 60, rebalance: int = 21) -> np
 
 RULES = {
     "momentum_top3": lambda closes: momentum_topk(closes, k=3),
+    "momentum_12_1": lambda closes: momentum_topk(closes, k=3, lookback=231, skip=21),
     "inverse_vol": inverse_vol,
 }
 

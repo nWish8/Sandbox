@@ -112,8 +112,11 @@ def walkforward_coverage(data: pd.DataFrame, horizon: int, train_frac: float = 0
     bands = predict_bands(models, te[FEATURES].to_numpy())
     actual = te["target"].to_numpy()
     inside = (actual >= bands[:, 0]) & (actual <= bands[:, 2])
+    from scipy.stats import spearmanr
+    ic = spearmanr(bands[:, 1], actual).statistic       # rank IC of the median forecast
     return {"coverage": float(inside.mean()), "n_test": int(len(te)),
             "median_abs_err": float(np.median(np.abs(actual - bands[:, 1]))),
+            "rank_ic": float(ic) if np.isfinite(ic) else float("nan"),
             "train_end": str(tr.index.max().date()), "test_start": str(te.index.min().date())}
 
 
@@ -161,4 +164,9 @@ def format_projection(table: pd.DataFrame, honesty: dict, horizon: int) -> str:
             f"(nominal 80%, n={honesty['n_test']})"
             + ("  — bands look OVERCONFIDENT, treat them as narrow" if cov < 0.70 else ""))
     lines.append(f"\nhonesty check: {note}")
+    ic = honesty.get("rank_ic", float("nan"))
+    if np.isfinite(ic):
+        strength = ("no real ranking power" if abs(ic) < 0.03 else
+                    "weak" if abs(ic) < 0.10 else "meaningful")
+        lines.append(f"rank IC (median forecast vs actual, OOS): {ic:+.3f} — {strength}")
     return "\n".join(lines)

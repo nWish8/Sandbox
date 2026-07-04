@@ -54,6 +54,27 @@ def test_inverse_vol_prefers_the_quiet_asset():
     assert w[150:, 0].mean() > 0.7                            # quiet asset dominates
 
 
+def test_momentum_skip_dodges_recent_reversal():
+    """12-1-style construction: an asset that led for months then crashed in the last
+    `skip` bars is still selected when the signal skips the reversal window, and dropped
+    when it doesn't."""
+    T, N = 300, 2
+    a = np.concatenate([np.full(279, 0.005), np.full(20, -0.03)])    # leader, late crash
+    b = np.full(T - 1, 0.002)                                        # steady mild
+    closes = np.vstack([np.full(N, 100.0),
+                        100.0 * np.exp(np.cumsum(np.column_stack([a, b]), axis=0))])
+    w_skip = momentum_topk(closes, k=1, lookback=100, rebalance=5, skip=20)
+    w_now = momentum_topk(closes, k=1, lookback=100, rebalance=5, skip=0)
+    assert w_skip[-1, 0] == pytest.approx(1.0)         # skip window ignores the crash
+    assert w_now[-1, 1] == pytest.approx(1.0)          # raw momentum flees to the steady one
+
+
+def test_momentum_skip_extends_warmup():
+    closes = _panel(T=100, N=3)
+    w = momentum_topk(closes, k=1, lookback=60, rebalance=5, skip=20)
+    np.testing.assert_allclose(w[:81], 1.0 / 3)        # equal-weight through lookback+skip
+
+
 def test_permute_market_preserves_marginals_destroys_order():
     closes = _panel(T=120, N=3, seed=3)
     rng = np.random.default_rng(0)

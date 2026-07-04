@@ -79,6 +79,41 @@ def cmd_project(args):
     print(format_projection(table, honesty, args.horizon))
 
 
+def cmd_walkforward(args):
+    """Rolling retrain → stitched out-of-sample record + significance gate."""
+    from datetime import date
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from pipeline import FinRLConfig
+    from walkforward import format_walkforward, walkforward_run
+
+    cfg = FinRLConfig(
+        tickers=args.tickers or _DEFAULT_PORTFOLIO,
+        train_start=args.train_start, train_end=args.train_end,
+        trade_start=args.trade_start, trade_end=args.trade_end,
+        agent=args.algo if args.algo in ("ppo", "sac", "a2c") else "ppo",
+        device=args.device,
+    )
+    report = walkforward_run(cfg, reward=args.reward, algo=args.algo,
+                             timesteps=args.timesteps, n_folds=args.folds,
+                             lookback=args.lookback, seed=args.seed,
+                             device=args.device, log=print)
+    text = format_walkforward(report)
+    print("\n" + text)
+    if not args.no_log:
+        log_path = Path(__file__).resolve().parent / "RESEARCH_LOG.md"
+        c = report["config"]
+        entry = (f"\n## {date.today().isoformat()} — walk-forward ({c['algo']}/"
+                 f"{c['reward']}, {c['n_folds']} folds × {c['timesteps']} steps)\n\n"
+                 f"Universe: {len(cfg.tickers)} tickers · {cfg.train_start}"
+                 f"..{cfg.trade_end} · anchored expanding window · seed {c['seed']}.\n\n"
+                 f"```\n{text}\n```\n")
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(entry)
+        print(f"\nAppended to {log_path}")
+
+
 def cmd_vision(args):
     """Launch the Vision terminal (all modules in one dark window)."""
     from pathlib import Path
@@ -175,6 +210,22 @@ def _build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--fills", choices=["close", "open"], default="close",
                     help="execution price: close-to-close or next-bar open")
 
+    wf = sub.add_parser("walkforward",
+                        help="rolling retrain -> stitched OOS record + gate")
+    wf.add_argument("--tickers", nargs="*", default=None)
+    wf.add_argument("--reward", default="active_dsr")
+    wf.add_argument("--algo", choices=["ppo", "sac", "a2c"], default="ppo")
+    wf.add_argument("--folds", type=int, default=4)
+    wf.add_argument("--train-start", default="2014-01-01")
+    wf.add_argument("--train-end", default="2022-01-01")
+    wf.add_argument("--trade-start", default="2022-01-01")
+    wf.add_argument("--trade-end", default="2024-01-01")
+    wf.add_argument("--timesteps", type=int, default=20_000)
+    wf.add_argument("--lookback", type=int, default=60)
+    wf.add_argument("--seed", type=int, default=42)
+    wf.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    wf.add_argument("--no-log", action="store_true")
+
     sub.add_parser("vision", help="launch the Vision terminal")
 
     return p
@@ -191,6 +242,7 @@ def main(argv=None):
         "project": cmd_project,
         "replay": cmd_replay,
         "promote": cmd_promote,
+        "walkforward": cmd_walkforward,
         "vision": cmd_vision,
     }
     dispatch[args.cmd](args)
