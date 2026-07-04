@@ -152,8 +152,17 @@ returns *minus the equal-weight benchmark's returns*, bar for bar. Because the b
 external and computed from the same bars, an agent cannot earn a positive score by simply
 tracking or de-risking toward the benchmark — only genuine relative skill scores. A positive
 absolute Sharpe with a negative `active_sharpe` means the portfolio made money but did not beat
-naive equal weighting. The significance gate then decides whether a positive `active_sharpe` is
-distinguishable from luck.
+naive equal weighting.
+
+The significance gate then decides whether a positive `active_sharpe` is distinguishable
+from luck, with three tests on the champion's out-of-sample active returns: a per-bar
+sign-flip MCPT, a **block** sign-flip MCPT (dependence-robust null — the binding one when
+the runs test flags streakiness), and the Wald–Wolfowitz runs test. Promotion reports
+additionally compare the agent against classic rule baselines (momentum rotation,
+inverse-volatility) under identical costs, and support next-open fills so overnight gaps
+aren't credited to trades that couldn't have caught them. The reasoning behind these
+adoptions (and what was deliberately rejected) is in
+[`docs/EXTERNAL_REVIEW.md`](docs/EXTERNAL_REVIEW.md).
 
 ## Modules
 
@@ -173,7 +182,10 @@ projections.py       GBT quantile return bands (q10/q50/q90) + walk-forward cove
 runlog.py            checkpointed run recording (equity/weights/returns per generation) for replay
 run_replay_panel.py  bar-by-bar playback of a recorded run: checkpoint scrubber,
                      stacked-area weights, causal regime shading, play/pause + speed
-strategy_eval.py     formal backtester (slippage/latency cost model) + promotion flow + bt cross-check
+strategy_eval.py     formal backtester (slippage/latency cost model, close or next-open
+                     fills) + promotion flow with rule-baseline comparison + bt cross-check
+rule_policies.py     classic long-only baselines (momentum rotation, inverse-vol) +
+                     market-permutation significance test for rules
 evo_portfolio.py     GPU-batched population evolution on the multi-stock portfolio
 evo_replay_panel.py  3-pane bar-by-bar replay of a recorded population-evolution run
 control_panel.py     PyQt desktop panel to configure, launch, watch, and stop runs

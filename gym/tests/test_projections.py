@@ -48,11 +48,23 @@ def test_bands_never_cross():
 def test_walkforward_coverage_sane(fake_md):
     data = pooled_dataset(fake_md, ["AAA", "BBB", "CCC"], "2019-01-01", "2022-12-31",
                           horizon=10)
-    cov = walkforward_coverage(data, seed=0)
+    cov = walkforward_coverage(data, horizon=10, seed=0)
     assert cov["n_test"] > 100
     # nominal band is 80%; on stationary synthetic data anything wildly outside
     # [0.55, 0.98] means the quantile machinery is broken, not just noisy
     assert 0.55 <= cov["coverage"] <= 0.98
+
+
+def test_walkforward_embargo_purges_overlapping_targets(fake_md):
+    """A train row's target window [t, t+h] must never overlap the test period: the last
+    training date has to sit at least `horizon` trading days before the first test date."""
+    h = 10
+    data = pooled_dataset(fake_md, ["AAA", "BBB"], "2019-01-01", "2022-12-31", horizon=h)
+    cov = walkforward_coverage(data, horizon=h, seed=0)
+    dates = data.dropna(subset=["target"]).index.unique().sort_values()
+    gap = (dates.get_loc(pd.Timestamp(cov["test_start"]))
+           - dates.get_loc(pd.Timestamp(cov["train_end"])))
+    assert gap >= h
 
 
 def test_walkforward_refuses_tiny_samples():
@@ -60,7 +72,7 @@ def test_walkforward_refuses_tiny_samples():
     tiny = pd.DataFrame({f: np.random.default_rng(0).normal(size=40) for f in FEATURES},
                         index=idx)
     tiny["target"] = 0.0
-    out = walkforward_coverage(tiny)
+    out = walkforward_coverage(tiny, horizon=5)
     assert np.isnan(out["coverage"])                   # refuses rather than pretending
 
 

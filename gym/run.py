@@ -101,7 +101,7 @@ def cmd_promote(args):
         sys.exit("No recorded runs under gym/runs/. Train with a RunRecorder first.")
     cost = CostModel(cost_pct=args.cost_pct, slippage_bps=args.slippage_bps,
                      delay_bars=args.delay)
-    report = promote(run_id, cost=cost, split=args.split, log=print)
+    report = promote(run_id, cost=cost, split=args.split, fills=args.fills, log=print)
     print("\n" + format_report(report, title=f"{run_id} / {args.split}"))
 
 
@@ -172,6 +172,8 @@ def _build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--cost-pct", type=float, default=0.001)
     pm.add_argument("--slippage-bps", type=float, default=5.0)
     pm.add_argument("--delay", type=int, default=0, help="execution latency in bars")
+    pm.add_argument("--fills", choices=["close", "open"], default="close",
+                    help="execution price: close-to-close or next-bar open")
 
     sub.add_parser("vision", help="launch the Vision terminal")
 

@@ -87,21 +87,34 @@ def predict_bands(models: dict, X: np.ndarray) -> np.ndarray:
 
 # ─────────────────────────────────────────── the projection
 
-def walkforward_coverage(data: pd.DataFrame, train_frac: float = 0.7,
+def walkforward_coverage(data: pd.DataFrame, horizon: int, train_frac: float = 0.7,
                          seed: int = 42) -> dict:
-    """Chronological 70/30 fit/eval: how often did actuals land inside [q10, q90] OOS?"""
+    """Chronological fit/eval with a **purged embargo**: how often did actuals land inside
+    [q10, q90] out of sample?
+
+    The embargo (López de Prado-style, via the ML4T reference) drops the last ``horizon``
+    training dates before the cut: a row at date t carries a target computed from prices
+    through t+h, so training rows inside h bars of the cut would share their target window
+    with the test period — leakage that flatters coverage. Purging them keeps the two
+    target windows disjoint.
+    """
     fit_rows = data.dropna(subset=["target"])
-    cut_date = fit_rows.index.unique().sort_values()[int(len(fit_rows.index.unique()) * train_frac)]
-    tr = fit_rows[fit_rows.index < cut_date]
-    te = fit_rows[fit_rows.index >= cut_date]
+    dates = fit_rows.index.unique().sort_values()
+    cut_i = int(len(dates) * train_frac)
+    embargo_i = max(0, cut_i - horizon)
+    tr = fit_rows[fit_rows.index < dates[embargo_i]]
+    te = fit_rows[fit_rows.index >= dates[cut_i]]
     if len(tr) < 100 or len(te) < 30:
-        return {"coverage": float("nan"), "n_test": int(len(te)), "median_abs_err": float("nan")}
+        return {"coverage": float("nan"), "n_test": int(len(te)),
+                "median_abs_err": float("nan"),
+                "train_end": None, "test_start": None}
     models = fit_quantiles(tr[FEATURES].to_numpy(), tr["target"].to_numpy(), seed=seed)
     bands = predict_bands(models, te[FEATURES].to_numpy())
     actual = te["target"].to_numpy()
     inside = (actual >= bands[:, 0]) & (actual <= bands[:, 2])
     return {"coverage": float(inside.mean()), "n_test": int(len(te)),
-            "median_abs_err": float(np.median(np.abs(actual - bands[:, 1])))}
+            "median_abs_err": float(np.median(np.abs(actual - bands[:, 1]))),
+            "train_end": str(tr.index.max().date()), "test_start": str(te.index.min().date())}
 
 
 def project(tickers: list[str], horizon: int = 20, end: str | None = None,
@@ -117,7 +130,7 @@ def project(tickers: list[str], horizon: int = 20, end: str | None = None,
     start = (end_ts - pd.Timedelta(days=window_days)).strftime("%Y-%m-%d")
     data = pooled_dataset(md, tickers, start, end_ts.strftime("%Y-%m-%d"), horizon, log=log)
 
-    honesty = walkforward_coverage(data, seed=seed)
+    honesty = walkforward_coverage(data, horizon=horizon, seed=seed)
     fit_rows = data.dropna(subset=["target"])
     models = fit_quantiles(fit_rows[FEATURES].to_numpy(), fit_rows["target"].to_numpy(),
                            seed=seed)

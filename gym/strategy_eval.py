@@ -76,10 +76,47 @@ def replay_weights(weights: np.ndarray, asset_rets: np.ndarray,
                          "equity": np.cumprod(1.0 + net)})
 
 
+def replay_weights_ohlc(weights: np.ndarray, opens: np.ndarray, closes: np.ndarray,
+                        cost: CostModel | None = None) -> pd.DataFrame:
+    """Open-fill accounting (backtrader-style execution realism).
+
+    The decision made after bar k−1's close executes at bar k's **open**: from
+    close_{k−1}→open_k the book still holds the old weights (they earn the overnight gap);
+    from open_k→close_k it holds the new ones. Compounded per bar. Turnover cost is charged
+    on |Δw| at the open (the pre-gap weight drift is ignored — a documented approximation,
+    consistent with the close-fill accounting). With gapless data (open_k == close_{k−1})
+    this reproduces ``replay_weights`` exactly (tested)."""
+    cost = cost if cost is not None else CostModel()
+    w = np.asarray(weights, dtype=np.float64)
+    o = np.asarray(opens, dtype=np.float64)
+    c = np.asarray(closes, dtype=np.float64)
+    if not (w.shape == o.shape == c.shape):
+        raise ValueError(f"shapes must match: weights {w.shape}, opens {o.shape}, "
+                         f"closes {c.shape}")
+    if cost.delay_bars > 0:
+        d = int(cost.delay_bars)
+        w = np.vstack([np.repeat(w[[0]], d, axis=0), w[:-d]])
+    prev_w = np.vstack([w[[0]], w[:-1]])
+    gap = np.zeros_like(c)
+    gap[1:] = o[1:] / c[:-1] - 1.0
+    day = np.zeros_like(c)
+    day[1:] = c[1:] / o[1:] - 1.0
+    gross = (1.0 + (prev_w * gap).sum(axis=1)) * (1.0 + (w * day).sum(axis=1)) - 1.0
+    turnover = np.abs(w - prev_w).sum(axis=1)
+    net = gross - cost.friction * turnover
+    net[0] = 0.0
+    return pd.DataFrame({"ret": net, "gross": gross, "turnover": turnover,
+                         "equity": np.cumprod(1.0 + net)})
+
+
+def _pivot(df: pd.DataFrame, tics: list[str], col: str) -> np.ndarray:
+    return (df.pivot_table(index="date", columns="tic", values=col)
+            .sort_index()[tics].to_numpy())
+
+
 def asset_returns_from_history(df: pd.DataFrame, tics: list[str]) -> np.ndarray:
     """(T, N) per-asset close-to-close returns aligned to history rows (row 0 = 0)."""
-    closes = (df.pivot_table(index="date", columns="tic", values="close")
-              .sort_index()[tics].to_numpy())
+    closes = _pivot(df, tics, "close")
     rets = np.zeros_like(closes)
     rets[1:] = closes[1:] / closes[:-1] - 1.0
     return rets
@@ -88,10 +125,19 @@ def asset_returns_from_history(df: pd.DataFrame, tics: list[str]) -> np.ndarray:
 # ─────────────────────────────────────────── the formal report
 
 def evaluate(weights: np.ndarray, asset_rets: np.ndarray, cost: CostModel | None = None,
-             periods_per_year: int = TRADING_DAYS) -> dict:
-    """Formal backtest report for a weight path under a cost model."""
+             periods_per_year: int = TRADING_DAYS,
+             opens: np.ndarray | None = None, closes: np.ndarray | None = None) -> dict:
+    """Formal backtest report for a weight path under a cost model.
+
+    Pass ``opens`` + ``closes`` to switch to open-fill execution (``replay_weights_ohlc``);
+    the benchmark stays equal-weight close-to-close either way so reports are comparable."""
     cost = cost if cost is not None else CostModel()
-    res = replay_weights(weights, asset_rets, cost)
+    if opens is not None and closes is not None:
+        res = replay_weights_ohlc(weights, opens, closes, cost)
+        fills = "open"
+    else:
+        res = replay_weights(weights, asset_rets, cost)
+        fills = "close"
     bench = asset_rets.mean(axis=1)                       # equal-weight, same bars
     bench[0] = 0.0
     r = res["ret"].to_numpy()[1:]
@@ -101,11 +147,21 @@ def evaluate(weights: np.ndarray, asset_rets: np.ndarray, cost: CostModel | None
     equity = res["equity"].to_numpy()
     drawdown = equity / np.maximum.accumulate(equity) - 1.0
     active = r - b
+    if len(active) and np.max(np.abs(active)) < 1e-12:
+        stats["active_sharpe"] = 0.0     # identical to benchmark bar-for-bar: the Sharpe of
+        # float rounding noise is meaningless and must not masquerade as (anti-)edge
+    wins, losses = float(r[r > 0].sum()), float(-r[r < 0].sum())
+    w_arr = np.asarray(weights, dtype=np.float64)
     report = {
         "cost_model": asdict(cost),
+        "fills": fills,
         "stats": stats,
         "win_rate": float((r > 0).mean()),
         "active_win_rate": float((active > 0).mean()),
+        "profit_factor": (wins / losses) if losses > 0 else float("nan"),
+        "hhi_mean": float((w_arr ** 2).sum(axis=1).mean()),   # concentration (1/N = spread)
+        "best_bar": float(r.max()) if len(r) else float("nan"),
+        "worst_bar": float(r.min()) if len(r) else float("nan"),
         "avg_turnover": float(res["turnover"].to_numpy()[1:].mean()),
         "total_friction_paid": float((cost.friction * res["turnover"]).sum()),
         "equity": equity.tolist(),
@@ -121,7 +177,7 @@ def format_report(report: dict, title: str = "promotion") -> str:
     lines = [
         f"── formal backtest [{title}] "
         f"(commission {c['cost_pct']:.4f}/turnover, slippage {c['slippage_bps']:.0f}bps, "
-        f"delay {c['delay_bars']} bar) " + "─" * 10,
+        f"delay {c['delay_bars']} bar, {report.get('fills', 'close')} fills) " + "─" * 10,
         f"  bars {s.get('n_bars', 0)}   total return {s.get('total_return', float('nan')):+.3f}"
         f"   vs equal-weight {s.get('bench_total_return', float('nan')):+.3f}"
         f"   (excess {s.get('excess_total', float('nan')):+.3f})",
@@ -129,19 +185,32 @@ def format_report(report: dict, title: str = "promotion") -> str:
         f"   calmar {s.get('calmar', float('nan')):+.3f}   ACTIVE sharpe "
         f"{s.get('active_sharpe', float('nan')):+.3f}",
         f"  max drawdown {s.get('max_drawdown', float('nan')):+.3f}"
-        f"   win rate {report['win_rate']:.1%}   active win rate {report['active_win_rate']:.1%}",
+        f"   win rate {report['win_rate']:.1%}   active win rate {report['active_win_rate']:.1%}"
+        f"   profit factor {report.get('profit_factor', float('nan')):.2f}",
         f"  avg turnover/bar {report['avg_turnover']:.4f}"
+        f"   concentration (HHI) {report.get('hhi_mean', float('nan')):.3f}"
         f"   total friction paid {report['total_friction_paid']:.4f}",
     ]
+    if "baselines" in report:
+        lines.append("  vs rule baselines (same costs, close fills):")
+        lines.append(f"    {'policy':<16} {'active_sh':>9} {'sharpe':>8} {'total':>8} {'maxDD':>8}")
+        for name, m in report["baselines"].items():
+            lines.append(f"    {name:<16} {m['active_sharpe']:>+9.3f} {m['sharpe']:>+8.3f}"
+                         f" {m['total_return']:>+8.3f} {m['max_drawdown']:>+8.3f}")
     return "\n".join(lines)
 
 
 # ─────────────────────────────────────────── promotion from a recorded run
 
 def promote(run_id: str, cost: CostModel | None = None, split: str = "test",
+            fills: str = "close", baselines: bool = True,
             runs_dir: Path | str | None = None, log=print) -> dict:
     """Load a recorded run's final model, roll it over the held-out split, apply the cost
-    model, and return (and persist) the formal report."""
+    model, and return (and persist) the formal report.
+
+    ``fills="open"`` switches the agent's accounting to open-price execution.
+    ``baselines=True`` adds classic rule policies (rule_policies.RULES) plus constant
+    equal-weight, evaluated under the SAME cost model, so the agent has honest company."""
     import stable_baselines3 as sb3
 
     from investigate import split_val_test
@@ -171,12 +240,33 @@ def promote(run_id: str, cost: CostModel | None = None, split: str = "test",
     tics = sorted(eval_df["tic"].unique().tolist())
     weights = hist[[f"w_{t}" for t in tics]].to_numpy()
     asset_rets = asset_returns_from_history(eval_df, tics)
+    closes = _pivot(eval_df, tics, "close")
 
-    report = evaluate(weights, asset_rets, cost)
+    if fills == "open":
+        report = evaluate(weights, asset_rets, cost,
+                          opens=_pivot(eval_df, tics, "open"), closes=closes)
+    else:
+        report = evaluate(weights, asset_rets, cost)
     report["run_id"] = run_id
     report["split"] = split
     report["algo"], report["reward"] = m["algo"], m["reward"]
     report["dates"] = hist["date"].astype(str).tolist()
+
+    if baselines:
+        from rule_policies import RULES
+
+        def _brief(rep: dict) -> dict:
+            s = rep["stats"]
+            return {k: s.get(k, float("nan"))
+                    for k in ("active_sharpe", "sharpe", "total_return", "max_drawdown")}
+
+        T, N = weights.shape
+        comp = {"agent": _brief(report),
+                "equal_weight": _brief(evaluate(np.tile(np.full(N, 1.0 / N), (T, 1)),
+                                                asset_rets, cost))}
+        for name, fn in RULES.items():
+            comp[name] = _brief(evaluate(fn(closes), asset_rets, cost))
+        report["baselines"] = comp
 
     out_dir = HERE / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)

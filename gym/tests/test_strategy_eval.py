@@ -90,6 +90,62 @@ def test_evaluate_report_fields():
     assert "ACTIVE sharpe" in text and "slippage" in text
 
 
+def test_open_fill_equals_close_fill_without_gaps():
+    """When every open equals the previous close, open-fill accounting must reproduce
+    close-fill exactly — the two implementations cross-validate."""
+    from strategy_eval import replay_weights_ohlc
+    rng = np.random.default_rng(4)
+    T, N = 50, 3
+    weights = rng.dirichlet(np.ones(N), size=T)
+    closes = np.vstack([np.full(N, 100.0),
+                        100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, (T - 1, N)), axis=0))])
+    opens = np.vstack([closes[[0]], closes[:-1]])             # gapless market
+    rets = np.zeros_like(closes)
+    rets[1:] = closes[1:] / closes[:-1] - 1.0
+    cost = CostModel(cost_pct=0.001, slippage_bps=3.0)
+    a = replay_weights(weights, rets, cost)
+    b = replay_weights_ohlc(weights, opens, closes, cost)
+    np.testing.assert_allclose(b["equity"], a["equity"], rtol=1e-10)
+
+
+def test_open_fill_old_weights_earn_the_gap():
+    """Hand-computed: a +10% overnight gap on the asset you're switching INTO is earned by
+    the OLD weights under open fills (you weren't in yet), unlike close fills."""
+    from strategy_eval import replay_weights_ohlc
+    closes = np.array([[100.0, 100.0], [110.0, 100.0]])       # asset0 gaps +10%, flat after
+    opens = np.array([[100.0, 100.0], [110.0, 100.0]])        # whole move is the gap
+    weights = np.array([[0.5, 0.5], [1.0, 0.0]])              # switch fully into asset0
+    free = CostModel(cost_pct=0.0, slippage_bps=0.0)
+    res = replay_weights_ohlc(weights, opens, closes, free)
+    assert res["ret"].iloc[1] == pytest.approx(0.05)          # old 50/50 earned the gap
+    rets = np.array([[0.0, 0.0], [0.10, 0.0]])
+    close_fill = replay_weights(weights, rets, free)
+    assert close_fill["ret"].iloc[1] == pytest.approx(0.10)   # close fill credits it all
+
+
+def test_benchmark_identical_portfolio_scores_zero_active():
+    """Constant equal weights ARE the benchmark; float noise must not become a fake
+    (anti-)edge in the report."""
+    rng = np.random.default_rng(6)
+    T, N = 80, 3
+    rets = np.vstack([np.zeros(N), rng.normal(0.0005, 0.01, (T - 1, N))])
+    eq = np.tile(np.full(N, 1.0 / N), (T, 1))
+    rep = evaluate(eq, rets, CostModel(cost_pct=0.001, slippage_bps=5.0))
+    assert rep["stats"]["active_sharpe"] == 0.0
+
+
+def test_report_extras_present_and_sane():
+    rng = np.random.default_rng(5)
+    T, N = 60, 3
+    weights = rng.dirichlet(np.ones(N), size=T)
+    rets = np.vstack([np.zeros(N), rng.normal(0.0005, 0.01, (T - 1, N))])
+    rep = evaluate(weights, rets, CostModel())
+    assert rep["fills"] == "close"
+    assert rep["profit_factor"] > 0
+    assert 1.0 / N <= rep["hhi_mean"] <= 1.0                  # between spread and all-in
+    assert rep["worst_bar"] <= rep["best_bar"]
+
+
 def test_bt_crosscheck_agrees_with_replay():
     """Zero-cost: FinRL-X's bt engine and our accounting must produce the same equity."""
     rng = np.random.default_rng(2)
