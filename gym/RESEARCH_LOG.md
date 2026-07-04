@@ -133,3 +133,20 @@ Ranked by **validation** `active_sharpe` (selection never touches test):
 ```
 
 Run manifest (reproducibility): `investigation_20260704_002118.json`
+
+## 2026-07-04 — walk-forward (ppo/active_dsr, 4 folds × 20000 steps)
+
+Universe: 8 tickers · 2014-01-01..2024-01-01 · anchored expanding window · seed 42.
+
+```
+fold test window              active_sh   sharpe    total    maxDD
+------------------------------------------------------------------
+   0 2019-02-13..2020-05-01      -1.347   +0.509   +0.137   -0.303
+   1 2020-05-04..2021-07-21      -1.308   +2.187   +0.530   -0.092
+   2 2021-07-22..2022-10-07      -0.498   +0.024   -0.014   -0.161
+   3 2022-10-10..2023-12-28      -0.676   +1.964   +0.363   -0.079
+
+stitched OOS (1224 bars): active_sharpe=-0.804  sharpe=+0.975  total=+1.338  maxDD=-0.303
+stitched gate: Sharpe=-0.804  MCPT p=0.9590  block p=0.9606  runs p=0.5322 -> not significant
+fold dispersion: 0/4 folds positive, spread [-1.347, -0.498]
+```
